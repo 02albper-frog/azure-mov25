@@ -5,7 +5,7 @@
 set -e
 
 RESOURCE_GROUP="rg-novatrix"
-LOCATION="westeurope"
+LOCATION="swedencentral"
 VM_NAME="vm-novatrix-web"
 VM_SIZE="Standard_B2ats_v2"
 
