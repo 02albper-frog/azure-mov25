@@ -14,11 +14,11 @@ write_files:
       <html lang="sv">
       <head>
         <meta charset="UTF-8">
-        <title>Novatrix AB – Kundtjänst</title>
+        <title>Novatrix AB - Kundtjanst</title>
       </head>
       <body>
         <h1>Novatrix AB</h1>
-        <p>Välkommen till vår kundtjänst. Fyll i formuläret nedan så återkommer vi.</p>
+        <p>Valkommen till var kundtjanst. Fyll i formularet nedan sa aterkommer vi.</p>
 
         <form>
           <label for="namn">Namn:</label><br>
