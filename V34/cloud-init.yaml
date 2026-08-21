@@ -1,0 +1,40 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+packages:
+  - nginx
+
+write_files:
+  - path: /var/www/html/index.html
+    owner: root:root
+    permissions: '0644'
+    content: |
+      <!DOCTYPE html>
+      <html lang="sv">
+      <head>
+        <meta charset="UTF-8">
+        <title>Novatrix AB – Kundtjänst</title>
+      </head>
+      <body>
+        <h1>Novatrix AB</h1>
+        <p>Välkommen till vår kundtjänst. Fyll i formuläret nedan så återkommer vi.</p>
+
+        <form>
+          <label for="namn">Namn:</label><br>
+          <input type="text" id="namn" name="namn"><br><br>
+
+          <label for="epost">E-post:</label><br>
+          <input type="email" id="epost" name="epost"><br><br>
+
+          <label for="meddelande">Meddelande:</label><br>
+          <textarea id="meddelande" name="meddelande"></textarea><br><br>
+
+          <button type="submit">Skicka</button>
+        </form>
+      </body>
+      </html>
+
+runcmd:
+  - systemctl enable nginx
+  - systemctl restart nginx
