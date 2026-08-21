@@ -9,7 +9,7 @@ Jag skapade ett publikt GitHub-repo, `azure-novatrix`, som ska följa mig genom 
 
 **Verifiering:** Repot är publikt och nåbart.
 
-![alt text](<Skärmbild 2026-08-20 144255.png>)
+![alt text](github-repo.png)
 
 ## Delmoment 2 – Provisionera en virtuell server
 
@@ -17,7 +17,7 @@ Jag provisionerade en virtuell maskin i Azure baserad på Ubuntu 22.04. Jag vald
 
 **Verifiering:** VM:en skapades utan fel och tilldelades den publika IP-adressen `172.160.228.10`.
 
-![alt text](<Skärmbild 2026-08-20 141322-2.png>)
+![alt text](vm-created.png)
 
 
 ## Delmoment 3 – Konfigurera värdmiljön
@@ -45,7 +45,7 @@ sudo systemctl enable nginx
 
 **Verifiering:** Jag kontrollerade att Nginx var igång med `sudo systemctl status nginx`, som visade status `active (running)`. Se skärmdump nedan.
 
-![alt text](<Skärmbild 2026-08-20 141749-1.png>)
+![alt text](nginx-status.png)
 
 ## Delmoment 4 – Driftsätt kundtjänstsidan med ärendeformulär
 
@@ -53,7 +53,7 @@ Jag skapade en enkel webbsida, `index.html`, som presenterar Novatrix AB och inn
 
 Jag fick lite problem med att ansluta till webbsidan men efter att jag öpnat port 80 fungerade det.
 
-![alt text](<Skärmbild 2026-08-20 141339.png>)
+![alt text](port-opened.png)
 
 **Kod:**
 
@@ -86,7 +86,7 @@ Jag fick lite problem med att ansluta till webbsidan men efter att jag öpnat po
 
 **Verifiering:** Sidan är nåbar på `http://172.160.228.10` och visar Novatrix kundtjänstsida med formuläret synligt.
 
-![alt text](<Skärmbild 2026-08-20 142401-1.png>)
+![alt text](support-page.png)
 
 ## Delmoment 5 – Verifiera och dokumentera
 
