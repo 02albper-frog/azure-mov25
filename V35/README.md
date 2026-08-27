@@ -70,3 +70,51 @@ vilket gav en tom lista, precis som förväntat.
 
 ## Delmoment 5 – Verifiera och dokumentera
 
+För att verifiera att behörighetsmodellens avgränsningar fungerar i praktiken genomfördes praktiska tester med testanvändarna David (Utvecklare, `Reader`) och Lena (Drift, `Contributor`).
+
+### 1. Verifieringsmatris för Least Privilege
+
+| Testad användare | Grupp & Roll | Handling | Förväntat resultat | Faktiskt utfall |
+| :--- | :--- | :--- | :--- | :--- |
+| **David** | `Azure-Dev` (`Reader`) | Se resurser och konfiguration i `rg-novatrix-v34`. | **Tillåtet** | Framgångsrikt. Kan läsa all konfiguration för felsökning. |
+| **David** | `Azure-Dev` (`Reader`) | Starta den virtuella datorn `vm-novatrix-web`. | **Nekat** | **Nekat.** Åtkomst stoppades direkt av Azure RBAC. |
+| **Lena** | `Azure-Drift` (`Contributor`) | Starta, stoppa och ändra resurser i resursgruppen. | **Tillåtet** | Framgångsrikt. Full driftmässig hantering. |
+| **Lena** | `Azure-Drift` (`Contributor`) | Ge rolltilldelningar till andra användare i IAM. | **Nekat** | **Nekat.** Tilldelning av roller kräver `Owner`. |
+
+---
+
+### 2. Verifieringseksempel: Nekad start av virtuell maskin
+
+Vid försök att starta den virtuella datorn `vm-novatrix-web` som användaren **David** (med enbart `Reader`-roll) spärras åtgärden av Azure Resource Manager:
+
+![alt text](David-denied.png)
+
+## VG – Skalbar least privilege-modell
+
+**Beskrivning**  
+Behörighetsmodellen har utökats till fem dedikerade grupper i Entra ID. Samtliga rolltilldelningar appliceras automatiserat via Azure CLI (`rbac-setup.sh`) för att strikt efterleva principen om minsta möjliga behörighet (Least Privilege) och automatiserad infrastruktur.
+
+| Grupp | Tilldelad roll | Motivering & Omfång |
+| :--- | :--- | :--- |
+| **Azure-Dev** | `Reader` | Läsrättigheter för att granska konfigurationer och felsöka, utan möjlighet att ändra resurser. |
+| **Azure-Drift** | `Contributor` | Fulla rättigheter att skapa, ändra och hantera resurser inom den dagliga driften. |
+| **Azure-Security** | `Security Admin` | Åtgärdar säkerhetsrekommendationer och hanterar policys utan direkt tillgång till resursernas data/drift. |
+| **Azure-Admin** | `Owner` | Fullständiga rättigheter inklusive hantering av behörigheter (IAM). Begränsat till ett fåtal behöriga. |
+| **Azure-Support** | `Virtual Machine Contributor` | Avgränsad roll för att hantera och starta om virtuella maskiner, utan tillgång till nätverk eller lagring. |
+
+---
+
+**Verifiering**  
+Fullständig exekvering och kontroll sker via `rbac-setup.sh`. Tilldelningarna verifieras i mätbar vy nedan via `az role assignment list`:
+
+![alt text](rbac-cli-verifiering.png)
+
+---
+
+**Skalbarhet & Förvaltning**  
+Modellen är byggd för att enkelt skala i takt med att Novatrix växer. Om ett nytt team (exempelvis ett produktteam) tillkommer krävs enbart skapandet av en ny Entra ID-grupp samt en motsvarande rad i `rbac-setup.sh`.
+
+Att hantera behörigheter på **gruppnivå via kod** framför manuell tilldelning på individnivå i Azure-portalen ger tre stora fördelar:
+* **Versionshantering:** Alla ändringar i behörighetsstrukturen spåras direkt i Git.
+* **Spårbarhet & Revisionsduglighet:** Tydlig överblick över vem som har tillgång till vad genom gruppmedlemskap.
+* **Reproducerbarhet:** Identiska behörighetsmodeller kan på sekunder appliceras på nya resurser eller testmiljöer.
