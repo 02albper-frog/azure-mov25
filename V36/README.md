@@ -37,9 +37,9 @@ Jag skapade en Network Security Group (`nsg-web`) i portalen och kopplade den ti
 
 | Prioritet | Namn | Port | Källa | Åtgärd | Motivering |
 |---|---|---|---|---|---|
-| 100 | Allow-HTTP | 80 (TCP) | Service Tag: Internet | Allow | Tillåter publika användare att nå ärendeformuläret i webbläsaren. |
-| 100 | Allow-HTTPS | 443 (TCP) | Service Tag: Internet | Allow | Förbereder för framtida krypterad HTTPS-trafik. |
-| 200 | Allow-SSH-AdminOnly | 22 (TCP) | IP: `<Admin-IP>` | Allow | Begränsar administrativ SSH-inloggning till min specifika IP-adress för att förhindra brute-force. |
+| 100 | Allow-Web | 80 (TCP) | Service Tag: Internet | Allow | Tillåter publika användare att nå ärendeformuläret i webbläsaren. |
+| 100 | Allow-web | 443 (TCP) | Service Tag: Internet | Allow | Förbereder för framtida krypterad HTTPS-trafik. |
+| 200 | Allow-SSH-Admin | 22 (TCP) | IP: `<Admin-IP>` | Allow | Begränsar administrativ SSH-inloggning till min specifika IP-adress för att förhindra brute-force. |
 
 **Säkerhet för `snet-db`:**  
 Subnätet `snet-db` hålls helt isolerat från internet genom att inga resurser tilldelas publika IP-adresser. All direkt inkommande trafik utifrån spärras av Azures inbyggda standardregler.
