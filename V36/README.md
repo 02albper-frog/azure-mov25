@@ -58,11 +58,49 @@ Jag raderade den gamla virtuella datorn men behöll den befintliga OS-disken (`v
 
 ![alt text](vm-networking-v36.png)
 
+
+
 ## Delmoment 5 – Verifiera och dokumentera
 
-För att verifiera att nätverkssegmenteringen och säkerhetsreglerna fungerar i praktiken genomfördes praktiska tester mot den virtuella datorns publika IP-adress.
+För att verifiera att nätverkssegmenteringen och säkerhetsreglerna fungerar i praktiken genomfördes tester mot den virtuella datorns publika IP-adress (`4.223.138.249`).
 
-### 1. Verifieringsmatris för Nätverk & Säkerhet
+---
+
+### 1. Nätverksskiss & Trafikflöden
+
+Nedanstående skiss illustrerar Novatrix nätverksdesign samt hur `nsg-web` och nätverksisoleringen styr vilken trafik som släpps igenom respektive blockeras:
+
+```text
+                               INTERNET
+                                  │
+       ┌──────────────────────────┼──────────────────────────┐
+       ▼                          ▼                          ▼
+   HTTP (80)                  HTTPS (443)             SSH (22 - Admin)
+       │                          │                          │
+       ▼                          ▼                          ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ❌ [BLOCKERAD]: SSH (22) från övriga IP-adresser                         │
+│ ❌ [BLOCKERAD]: Övriga opublicerade portar (t.ex. 8080)                  │
+│ ❌ [BLOCKERAD]: Direkt internettrafik mot snet-db                        │
+│                                                                         │
+│ VNet: vnet-novatrix (10.0.0.0/16) - Sweden Central                     │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ Public Subnet: snet-web (10.0.1.0/24)                              │  │
+│  │ NSG: nsg-web                                                       │  │
+│  │                                                                    │  │
+│  │   ► [vm-novatrix-web] (Privat IP: 10.0.1.4)                        │  │
+│  │     (Publik IP: 4.223.138.249)                                     │  │
+│  └─────────────────────────────────┬─────────────────────────────────┘  │
+│                                    │ Internt flöde                      │
+│                                    ▼                                    │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │ Private Subnet: snet-db (10.0.2.0/24)                              │  │
+│  │ (Ingen publik IP - Helt isolerad från internet)                     │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+### 2. Verifieringsmatris för Nätverk & Säkerhet
 
 | Testfall | Handling / Anrop | Förväntat resultat | Faktiskt utfall |
 | :--- | :--- | :--- | :--- |
@@ -72,7 +110,7 @@ För att verifiera att nätverkssegmenteringen och säkerhetsreglerna fungerar i
 
 ---
 
-### 2. Verifieringsexempel: Webbsida och blockerad trafik
+### 3. Verifieringsexempel: Webbsida och blockerad trafik
 
 Webbservern är tillgänglig från internet på port 80:
 
