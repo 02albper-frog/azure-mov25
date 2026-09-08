@@ -119,3 +119,89 @@ Webbservern är tillgänglig från internet på port 80:
 Vid försök att ansluta till en opublicerad port stoppas trafiken direkt av `nsg-web`:
 
 ![alt text](port-blocked.png)
+
+
+# Azure Infrastrukturdriftsättning – Novatrix (VG-nivå)
+
+Detta projekt innehåller en automatiserad "Zero-Touch" driftsättning av en säker infrastruktur i Microsoft Azure med hjälp av Bash och Azure CLI.
+
+---
+
+Markdown
+# Azure Infrastrukturdriftsättning – Novatrix (VG-nivå)
+
+Detta projekt innehåller en automatiserad "Zero-Touch" driftsättning av en säker infrastruktur i Microsoft Azure med hjälp av Bash och Azure CLI.
+
+---
+
+## 1. Arkitekturöversikt
+
+Infrastrukturen bygger på ett segmenterat virtuellt nätverk (VNet) med minsta möjliga behörighet och strikt nätverksisolering.
+
+* **VNet CIDR:** `10.0.0.0/16` (`vnet-novatrix`)
+* **Subnät & Segmentering:**
+  * `snet-web` (`10.0.1.0/24`): Innehåller webbservern (`vm-novatrix-web`). Styrs av `nsg-web`.
+  * `snet-db` (`10.0.2.0/24`): Databassubnät isolerat från internet. Styrs av `nsg-db`.
+  * `AzureBastionSubnet` (`10.0.3.0/26`): Dedikerat subnät för Azure Bastion.
+
+---
+
+## 2. Säkerhetsarkitektur & Trafikflöden (Zero-Trust)
+
+För att uppnå VG-krav på säkerhet används en **Azure Bastion Hop-Design** där all trafik styrs av Nätverkssäkerhetsgrupper (NSG):
+
+1. **Ingen publik SSH-exponering:** Port 22 på webbservern är helt stängd mot internet.
+2. **Begränsat Inbound-flöde:** `nsg-web` tillåter endast SSH-trafik (port 22) om källan kommer direkt från `AzureBastionSubnet` (`10.0.3.0/26`).
+3. **Säker administration:** Administrationsåtkomst sker via TLS-kryptering genom Azure Bastion Standard SKU med Native Client Tunneling.
+4. **Isolerat Databaslager:** Databassubnätet accepterar enbart inkommande trafik från `snet-web` (`10.0.1.0/24`).
+
+### NSG-Regelmatris
+
+| Subnät | NSG-Namn | Regel | Källa | Mål | Port | Åtgärd |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **snet-web** | `nsg-web` | `Allow-HTTP-All` | Internet (`*`) | `snet-web` | 80 | Allow |
+| **snet-web** | `nsg-web` | `Allow-SSH-From-Bastion` | `10.0.3.0/26` | `snet-web` | 22 | Allow |
+| **snet-db** | `nsg-db` | `Allow-DB-From-Web` | `10.0.1.0/24` | `snet-db` | 3306, 1433 | Allow |
+
+---
+
+## 3. Instruktioner för Driftsättning
+
+### Förutsättningar
+* Azure CLI installerat och inloggat (`az login`).
+* Bash-miljö (t.ex. Git Bash eller Linux/macOS terminal).
+
+### Driftsättning (Zero-Touch)
+Kör hela driftsättningen med ett enda kommando:
+
+```bash
+bash deploy-all.sh
+```
+
+## Verifiering
+
+**1. Webbtjänst (port80)**
+
+![alt text](Webb-VG.png)
+
+**2. Säker SSH-anslutning via Azure Bastion**
+
+```bash
+az network bastion ssh \
+  --name bastion-novatrix \
+  --resource-group rg-novatrix-v34 \
+  --target-resource-id $(az vm show --resource-group rg-novatrix-v34 --name vm-novatrix-web --query id -o tsv) \
+  --auth-type ssh-key \
+  --username azureuser \
+  --ssh-key "<SÖKVÄG_TILL_DIN_PRIVATA_NYCKEL>"
+  ```
+
+![alt text](SSH-anslutning.png)
+
+**3. Blockerad direktanslutning över internet**
+
+```bash
+ssh -o ConnectTimeout=5 azureuser@$WEB_IP
+```
+
+![alt text](Blockerad-anslutning.png)
