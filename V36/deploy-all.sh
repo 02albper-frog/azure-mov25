@@ -10,6 +10,7 @@ LOCATION="swedencentral"
 VNET="vnet-novatrix"
 VM_NAME="vm-novatrix-web"
 ADMIN_USER="azureuser"
+VM_SIZE="Standard_B2ats_v2"
 
 echo "1. Skapar Resursgrupp..."
 az group create --name "$RG" --location "$LOCATION" -o table
@@ -87,6 +88,7 @@ az vm create \
   --resource-group "$RG" \
   --name "$VM_NAME" \
   --image Ubuntu2204 \
+  --size "$VM_SIZE" \
   --admin-username "$ADMIN_USER" \
   --generate-ssh-keys \
   --vnet-name "$VNET" \
