@@ -29,13 +29,14 @@ Nginx har konfigurerats som reverse proxy (port 80 -> port 5000) så att webbapp
 
 ## Delmoment 4, Säkra åtkomsten
 
-Tillämpat principen om Least Privilege och Zero-Trust genom att helt undvika lösenord eller hårdkodade anslutningssträngar i koden:
+Tillämpat principen om Least Privilege och Zero-Trust genom att helt undvika lösenord eller hårdkodade anslutningssträngar i koden. Åtkomsten har säkrats genom att konfigurera och koppla en User-Assigned Managed Identity:
 
-- **Managed Identity:** Skapat en användartilldelad hanterad identitet (`id-novatrix-app`) och kopplat den till den virtuella maskinen (`vm-novatrix-web`).
-- **RBAC:** Tilldelat rollen **Storage Blob Data Contributor** till `id-novatrix-app` på containernivå (`tickets`).
-- **SDK-autentisering:** Python-koden använder `DefaultAzureCredential()` från `azure-identity`, vilket automatiskt hämtar och använder VM:ens tilldelade identitet.
+- **Skapande av Managed Identity:** Skapat den användartilldelade identiteten `id-novatrix-app`.
+- **Koppling till VM:** Tilldelat och kopplat `id-novatrix-app` till den virtuella maskinen `vm-novatrix-web` under fliken *Identitet (User assigned)*.
+- **RBAC-koppling till lagring:** Tilldelat rollen **Storage Blob Data Contributor** till `id-novatrix-app` på containernivå (`tickets`) under *Åtkomstkontroll (IAM)*.
+- **SDK-autentisering:** Python-koden använder `DefaultAzureCredential()` från `azure-identity`, vilket automatiskt använder VM:ens tillkopplade identitet (`id-novatrix-app`) för att autentisera mot Azure Blob Storage.
 
-**Verifiering:** Rolltilldelningen visas under **Åtkomstkontroll (IAM)** inne på containern `tickets`, och koden kan ladda upp filer utan sparade credentials.
+**Verifiering:** Rolltilldelningen visas under **Åtkomstkontroll (IAM)** inne på containern `tickets` där `id-novatrix-app` står angiven som *Storage Blob Data Contributor*, och koden kan ladda upp filer helt utan anslutningssträngar eller nycklar.
 
 ![alt text](roll-tilldelning.png)
 
