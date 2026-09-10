@@ -17,15 +17,22 @@ Skapat ett Azure Storage Account (`stnovatrixv37`) i resursgruppen `rg-novatrix-
 
 ## Delmoment 3, Koppla formuläret till lagringen
 
-Utvecklat en Python/Flask-applikation (`app.py`) på webbservern (`vm-novatrix-web`). Applikationen renderar ett ärendeformulär, tar emot inskickad data (titel och beskrivning) och laddar upp datan som en `.txt`-fil med unik tidsstämpel till `tickets`-containern med hjälp av Azures Python SDK (`azure-storage-blob`). 
+Utvecklat en Python/Flask-applikation (`app.py`) på webbservern (`vm-novatrix-web`) med stöd för både textbaserade ärenden och filuppladdning/bilagor via `multipart/form-data`. 
 
-Nginx har konfigurerats som reverse proxy (port 80 -> port 5000) så att webbappen är tillgänglig direkt via VM:ens offentliga IP-adress.
+Vid inskickning hanterar applikationen uppladdningen i två steg via Azures Python SDK (`azure-storage-blob`):
+1. **Ärendedata:** Skapar och laddar upp en `.txt`-fil (`ticket-YYYYMMDD-HHMMSS.txt`) med ärendets titel, tidsstämpel och beskrivning.
+2. **Bilaga:** Om en fil bifogas laddas den upp som en separat blob med formatet `attachment-YYYYMMDD-HHMMSS-<filnamn>`.
 
-**Verifiering:** Webbsidan nås via `http://<VM_PUBLIC_IP>` och returnerar bekräftelsen *"Ärendet har sparats i Azure Blob Storage!"* vid inskickat formulär.
+### Nginx Reverse Proxy & Konfiguration
+Nginx har konfigurerats som reverse proxy för att vidarebefordra all inkommande HTTP-trafik från standardporten (port 80) till Flask-applikationen på port 5000. 
 
-![alt text](Bekräftelse-ärende.png)
-![alt text](<Skärmbild 2026-09-10 092623.png>)
-![alt text](<Skärmbild 2026-09-10 092636.png>)
+För att stödja större bilagor har Nginx-konfigurationen anpassats med parametern `client_max_body_size 20M;`, vilket tillåter filuppladdningar upp till 20 MB och förhindrar fel gällande filstorleksgränser (HTTP 413).
+
+**Verifiering:** Webbsidan nås direkt via `http://<VM_PUBLIC_IP>` utan att ange portnummer. Vid inskickat formulär med bilaga returnerar applikationen bekräftelsen *"Ärendet och bilagan har sparats i Azure Blob Storage!"*, och båda filerna skapas i `tickets`-containern.
+
+![alt text](Formulärv37-1.png)
+![alt text](Ärende-bekräftelse2.png)
+
 
 ## Delmoment 4, Säkra åtkomsten
 
@@ -49,6 +56,4 @@ Genomfört ett end-to-end-test genom att skicka in ett testärende via webbformu
 2. Bekräftat att den nya filen (t.ex. `ticket-20260910-100424.txt`) har skapats i containern.
 3. Öppnat filen via **View/Edit** i portalen och verifierat att formulärets titel och beskrivning har sparats korrekt.
 
-![alt text](Storage-container-tickets.png)
-
-![alt text](Tickets-ärende-success.png)
+![alt text](Verifiering-container.png)
