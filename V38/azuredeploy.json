@@ -57,7 +57,7 @@
       "properties": {
         "securityRules": [
           {
-            "name": "Allow-HTTP-All",
+            "name": "Allow-HTTP-Web",
             "properties": {
               "priority": 100,
               "direction": "Inbound",
