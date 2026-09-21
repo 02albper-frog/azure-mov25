@@ -1,0 +1,7 @@
+# Ignorera alla lokala parameterfiler med känsliga data
+*.local.json
+
+# SSH-nycklar och temporära filer
+*.pem
+*.key
+*.tmp 
