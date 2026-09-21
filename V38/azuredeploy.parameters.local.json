@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "value": "azureuser"
+    },
+    "vmSize": {
+      "value": "Standard_B2ats_v2"
+    },
+    "storageAccountName": {
+      "value": "stnovatrixv38albin"
+    },
+    "sshPublicKey": {
+      "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDCyKIortONGYtgrpmO/thyK5/mHK2kww+nkmQLyzL6cHq4d7gIyeDkx5Qt4q1Y6COQ7xwRdsBm2Ue/y3UEW4cRDwM8yzJYyjgX7TwrrZai0jSh8op+37s3zU4z4pqTuP67AD+vHegCiJOgEFs95FKW1/hsv2uFU9a4MWDAi+Sgeo8V1Ko/3MWBi5AuiPS85YRre0YiuFWhIl8s2eIazEMa1p4fqvCF/Yp0QHu2nMuGPaly10xVzhZsVOA4bkQwQ5HW+9DbsEM7NthapwtV+l77Iz1BLF5aJm2x89CMxS65C3BhxsfS2DJ7UKJqrYdObJCWHuAXXun8t83veQjsErY3" 
+    }
+  }
+}
