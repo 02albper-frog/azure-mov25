@@ -26,8 +26,7 @@ runcmd:
     CONTAINER_NAME = "tickets"
     STORAGE_URL = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
 
-    # Klistra in din kopierade HTTP POST URL från Power Automate här nedanför:
-    POWER_AUTOMATE_URL = "DIN_POWER_AUTOMATE_URL_HÄR"
+    POWER_AUTOMATE_URL = "DIN_POWER_AUTOMATE_URL"
 
     HTML_FORM = """
     <!DOCTYPE html>
@@ -84,37 +83,36 @@ runcmd:
         description = request.form.get('description')
         uploaded_file = request.files.get('file')
         
-        # Generera unikt Ärende-ID och tidsstämpel
-        arende_id = f"NOV-{uuid.uuid4().hex[:6].upper()}"
+        ticket_id = f"NOV-{uuid.uuid4().hex[:6].upper()}"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         blob_url = ""
-        filnamn = ""
+        filename = ""
 
         credential = DefaultAzureCredential()
         blob_service_client = BlobServiceClient(account_url=STORAGE_URL, credential=credential)
 
         # 1. Spara bifogad fil i Blob Storage (om den finns)
         if uploaded_file and uploaded_file.filename != '':
-            filnamn = f"{arende_id}_{uploaded_file.filename}"
-            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filnamn)
+            filename = f"{ticket_id}_{uploaded_file.filename}"
+            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
             blob_client.upload_blob(uploaded_file.stream, overwrite=True)
-            blob_url = f"{STORAGE_URL}/{CONTAINER_NAME}/{filnamn}"
+            blob_url = f"{STORAGE_URL}/{CONTAINER_NAME}/{filename}"
 
-        # 2. Skapa JSON-objekt med svenska nycklar som matchar Power Automate & SharePoint
+        # 2. Standardiserad JSON-payload med engelska nycklar
         ticket_data = {
-            "ArendeID": arende_id,
-            "Timestamp": timestamp,
-            "Namn": name,
-            "Epost": email,
-            "Amne": subject,
-            "Beskrivning": description,
-            "Filnamn": filnamn,
-            "BlobURL": blob_url
+            "ticket_id": ticket_id,
+            "timestamp": timestamp,
+            "name": name,
+            "email": email,
+            "subject": subject,
+            "description": description,
+            "filename": filename,
+            "blob_url": blob_url
         }
         
-        # Spara hela ärendets metadata som en JSON-fil i Blob Storage
-        json_filename = f"ticket_{arende_id}.json"
+        # Spara ärendets metadata som JSON i Blob Storage
+        json_filename = f"ticket_{ticket_id}.json"
         json_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=json_filename)
         json_blob_client.upload_blob(json.dumps(ticket_data, ensure_ascii=False, indent=2), overwrite=True)
 
@@ -125,7 +123,7 @@ runcmd:
         except Exception as e:
             print(f"Power Automate Trigger Error: {e}")
 
-        return render_template_string(HTML_FORM, message=f"Tack! Ditt ärende har registrerats. Ärende-ID: {arende_id}")
+        return render_template_string(HTML_FORM, message=f"Tack! Ditt ärende har registrerats. Ärende-ID: {ticket_id}")
 
     if __name__ == '__main__':
         app.run(host='127.0.0.1', port=5000)
@@ -147,7 +145,7 @@ runcmd:
     }
     EOF
 
-  # Skapa systemd service för Flask
+  # Skapa systemd-tjänst för Flask
   - |
     cat << 'EOF' > /etc/systemd/system/novatrix.service
     [Unit]

@@ -13,15 +13,16 @@ Alla filer med ändelsen `.local.` (såsom `cloud-init-v39.local.yaml` och `azur
 V39/
 ├── azuredeploy.json
 ├── azuredeploy.parameters.json
-├── azuredeploy.parameters.local.json  (Lokal fil - ej i git)
+├── azuredeploy.parameters.local.json   (Lokal fil - ej i git)
 ├── cloud-init-v39.local.yaml           (Lokal fil - ej i git)
 ├── cloud-init-v39.yaml
+├── definition.json                      (Power Automate flödesdefinition)
 └── README.md
 ```
 ![alt text](rg-novatrix-v39.png)
 ---
 
-## Delmoment 2,
+## Delmoment 2, Power Automate
 
 Ett automatiserat molnflöde har skapats i Power Automate som exekveras asynkront när ett nytt ärende tas emot från webbformuläret.
 
@@ -169,36 +170,36 @@ runcmd:
         uploaded_file = request.files.get('file')
         
         # Generera unikt Ärende-ID och tidsstämpel
-        arende_id = f"NOV-{uuid.uuid4().hex[:6].upper()}"
+        ticket_id = f"NOV-{uuid.uuid4().hex[:6].upper()}"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         blob_url = ""
-        filnamn = ""
+        filename = ""
 
         credential = DefaultAzureCredential()
         blob_service_client = BlobServiceClient(account_url=STORAGE_URL, credential=credential)
 
         # 1. Spara bifogad fil i Blob Storage (om den finns)
         if uploaded_file and uploaded_file.filename != '':
-            filnamn = f"{arende_id}_{uploaded_file.filename}"
-            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filnamn)
+            filename = f"{ticket_id}_{uploaded_file.filename}"
+            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filename)
             blob_client.upload_blob(uploaded_file.stream, overwrite=True)
-            blob_url = f"{STORAGE_URL}/{CONTAINER_NAME}/{filnamn}"
+            blob_url = f"{STORAGE_URL}/{CONTAINER_NAME}/{filename}"
 
-        # 2. Skapa JSON-objekt med svenska nycklar som matchar Power Automate & SharePoint
+        # 2. Standardiserad JSON-payload med engelska nycklar
         ticket_data = {
-            "ArendeID": arende_id,
-            "Timestamp": timestamp,
-            "Namn": name,
-            "Epost": email,
-            "Amne": subject,
-            "Beskrivning": description,
-            "Filnamn": filnamn,
-            "BlobURL": blob_url
+            "ticket_id": ticket_id,
+            "timestamp": timestamp,
+            "name": name,
+            "email": email,
+            "subject": subject,
+            "description": description,
+            "filename": filename,
+            "blob_url": blob_url
         }
         
         # Spara hela ärendets metadata som en JSON-fil i Blob Storage
-        json_filename = f"ticket_{arende_id}.json"
+        json_filename = f"ticket_{ticket_id}.json"
         json_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=json_filename)
         json_blob_client.upload_blob(json.dumps(ticket_data, ensure_ascii=False, indent=2), overwrite=True)
 
@@ -209,7 +210,7 @@ runcmd:
         except Exception as e:
             print(f"Power Automate Trigger Error: {e}")
 
-        return render_template_string(HTML_FORM, message=f"Tack! Ditt ärende har registrerats. Ärende-ID: {arende_id}")
+        return render_template_string(HTML_FORM, message=f"Tack! Ditt ärende har registrerats. Ärende-ID: {ticket_id}")
 
     if __name__ == '__main__':
         app.run(host='127.0.0.1', port=5000)
@@ -223,7 +224,7 @@ runcmd:
         listen [::]:80 default_server;
 
         location / {
-            proxy_pass [http://127.0.0.1:5000](http://127.0.0.1:5000);
+            proxy_pass http://127.0.0.1:5000;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -261,13 +262,13 @@ runcmd:
 Hela kedjan har verifierats från inskickat formulär till utförd åtgärd i Microsoft 365.
 
 ### Flödets exekveringslogik
-1. **Inkommande Webhook:** Power Automate tar emot JSON-payload med de svenska nycklarna (`ArendeID`, `Epost`, `Amne`, `Beskrivning`, `Filnamn`, `BlobURL`) från Flask.
+1. **Inkommande Webhook:** Power Automate tar emot JSON-payload med engelska nycklar (`ticket_id`, `email`, `subject`, `description`, `filename`, `blob_url`) från Flask.
 2. **SharePoint-registrering:** Post skapas i listan *Ärenden*.
 3. **Villkorsstyrning (Condition):** Flödet utvärderar uttrycket:
    ```text
-   empty(triggerOutputs()?['body/Filnamn']) is equal to false
+   empty(triggerOutputs()?['body/filename']) is equal to false
    ```
-   * **Sant (Fil finns):** Flödet anropar Azure Blob Storage-donet `Hämta blobbinnehåll med hjälp av sökvägen (V2)` för sökvägen `/tickets/@{triggerOutputs()?['body/Filnamn']}`. Därefter skickas e-post till support och kund med filen bifogad.
+   * **Sant (Fil finns):** Flödet anropar Azure Blob Storage-donet `Hämta blobbinnehåll med hjälp av sökvägen (V2)` för sökvägen `/tickets/@{triggerOutputs()?['body/filename']}`. Därefter skickas e-post till support och kund med filen bifogad.
    * **Falskt (Fil saknas):** Flödet hoppar över hämtning från Azure Blob Storage och skickar e-postnotiser direkt utan bilagor.
 
 ![alt text](mail-support-.png)
@@ -305,7 +306,7 @@ Flödet integrerar tre separata plattformar i en sammanhängande kedja:
 ### Designmotivering
 * **Lös dockning (Loose Coupling):** Flask-applikationen på Azure VM behöver ingen kännedom om SharePoint-strukturer eller e-postmottagare. Kommunikationen sker via ett rent REST/JSON-gränssnitt över HTTP POST, vilket gör systemdelarna helt oberoende av varandra.
 * **Dataskydd & Resiliens:** Varje ärende sparas som en `.json`-fil i Azure Blob Storage utöver SharePoint-registreringen. Om M365-flödet drabbas av ett tillfälligt avbrott finns all originaldata kvar i Azure.
-* **Exakt Namngivningsmatchning:** Genom att använda exakt samma svenska fältnamn i Flask-koden (`ArendeID`, `Epost`, `Amne`, `Beskrivning`, `Filnamn`, `BlobURL`) som i Power Automate-schemat minimeras risken för fel i datamappningen hela vägen till SharePoint.
+* **Exakt Namngivningsmatchning:** Genom att använda exakt samma engelska fältnamn i Flask-koden (`ticket_id`, `email`, `subject`, `description`, `filename`, `blob_url`) som i Power Automate-schemat minimeras risken för fel i datamappningen hela vägen till SharePoint.
 
 ### Framtida utökningar
 
