@@ -27,7 +27,7 @@ runcmd:
     STORAGE_URL = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
 
     # Klistra in din kopierade HTTP POST URL från Power Automate här nedanför:
-    POWER_AUTOMATE_URL = "KLISTRA_IN_DIN_POWER_AUTOMATE_URL_HÄR"
+    POWER_AUTOMATE_URL = "DIN_POWER_AUTOMATE_URL_HÄR"
 
     HTML_FORM = """
     <!DOCTYPE html>
