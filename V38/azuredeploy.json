@@ -219,6 +219,7 @@
       "apiVersion": "2023-07-01",
       "name": "[variables('vmName')]",
       "location": "[parameters('location')]",
+      "zones": [ "1" ],
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
