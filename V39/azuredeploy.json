@@ -21,7 +21,7 @@
     },
     "storageAccountName": {
       "type": "string",
-      "defaultValue": "stnovatrixv38albin"
+      "metadata": { "description": "Unikt namn på Storage Account" }
     },
     "cloudInitData": {
       "type": "string",
@@ -250,6 +250,7 @@
           }
         },
         "storageProfile": {
+          "diskControllerType": "NVMe",
           "imageReference": {
             "publisher": "Canonical",
             "offer": "0001-com-ubuntu-server-jammy",

@@ -1,0 +1,170 @@
+#cloud-config
+package_update: true
+packages:
+  - python3
+  - python3-pip
+  - nginx
+
+runcmd:
+  - pip3 install flask azure-identity azure-storage-blob requests
+  - mkdir -p /var/www/novatrix
+  - |
+    cat << 'EOF' > /var/www/novatrix/app.py
+    import os
+    import json
+    import uuid
+    import requests
+    from datetime import datetime
+    from flask import Flask, request, render_template_string
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+
+    app = Flask(__name__)
+
+    # Konfiguration
+    ACCOUNT_NAME = "stnovatrixmov25albin"
+    CONTAINER_NAME = "tickets"
+    STORAGE_URL = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
+
+    # Klistra in din kopierade HTTP POST URL från Power Automate här nedanför:
+    POWER_AUTOMATE_URL = "KLISTRA_IN_DIN_POWER_AUTOMATE_URL_HÄR"
+
+    HTML_FORM = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Novatrix Kundtjänst</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }
+            .container { max-width: 500px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+            h2 { color: #333; }
+            label { font-weight: bold; display: block; margin-top: 10px; }
+            input, textarea { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+            button { margin-top: 15px; padding: 10px 15px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+            button:hover { background: #005a9e; }
+            .success { color: green; font-weight: bold; padding: 10px; background-color: #e7f4e4; border-radius: 4px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>Novatrix Ärendeformulär</h2>
+            {% if message %}<p class="success">{{ message }}</p>{% endif %}
+            <form method="POST" action="/submit" enctype="multipart/form-data">
+                <label>Namn:</label>
+                <input type="text" name="name" required>
+                
+                <label>E-post:</label>
+                <input type="email" name="email" required>
+                
+                <label>Ämne:</label>
+                <input type="text" name="subject" required>
+                
+                <label>Beskrivning:</label>
+                <textarea name="description" rows="4" required></textarea>
+                
+                <label>Bifoga fil (valfritt):</label>
+                <input type="file" name="file">
+                
+                <button type="submit">Skicka ärende</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """
+
+    @app.route('/', methods=['GET'])
+    def index():
+        return render_template_string(HTML_FORM)
+
+    @app.route('/submit', methods=['POST'])
+    def submit():
+        name = request.form.get('name')
+        email = request.form.get('email')
+        subject = request.form.get('subject')
+        description = request.form.get('description')
+        uploaded_file = request.files.get('file')
+        
+        # Generera unikt Ärende-ID och tidsstämpel
+        arende_id = f"NOV-{uuid.uuid4().hex[:6].upper()}"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        blob_url = ""
+        filnamn = ""
+
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(account_url=STORAGE_URL, credential=credential)
+
+        # 1. Spara bifogad fil i Blob Storage (om den finns)
+        if uploaded_file and uploaded_file.filename != '':
+            filnamn = f"{arende_id}_{uploaded_file.filename}"
+            blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=filnamn)
+            blob_client.upload_blob(uploaded_file.stream, overwrite=True)
+            blob_url = f"{STORAGE_URL}/{CONTAINER_NAME}/{filnamn}"
+
+        # 2. Skapa JSON-objekt med svenska nycklar som matchar Power Automate & SharePoint
+        ticket_data = {
+            "ArendeID": arende_id,
+            "Timestamp": timestamp,
+            "Namn": name,
+            "Epost": email,
+            "Amne": subject,
+            "Beskrivning": description,
+            "Filnamn": filnamn,
+            "BlobURL": blob_url
+        }
+        
+        # Spara hela ärendets metadata som en JSON-fil i Blob Storage
+        json_filename = f"ticket_{arende_id}.json"
+        json_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=json_filename)
+        json_blob_client.upload_blob(json.dumps(ticket_data, ensure_ascii=False, indent=2), overwrite=True)
+
+        # 3. Skicka HTTP POST till Power Automate
+        try:
+            if POWER_AUTOMATE_URL and "http" in POWER_AUTOMATE_URL:
+                requests.post(POWER_AUTOMATE_URL, json=ticket_data, timeout=5)
+        except Exception as e:
+            print(f"Power Automate Trigger Error: {e}")
+
+        return render_template_string(HTML_FORM, message=f"Tack! Ditt ärende har registrerats. Ärende-ID: {arende_id}")
+
+    if __name__ == '__main__':
+        app.run(host='127.0.0.1', port=5000)
+    EOF
+
+  # Konfigurera Nginx som Reverse Proxy till Flask
+  - |
+    cat << 'EOF' > /etc/nginx/sites-available/default
+    server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        location / {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+    EOF
+
+  # Skapa systemd service för Flask
+  - |
+    cat << 'EOF' > /etc/systemd/system/novatrix.service
+    [Unit]
+    Description=Novatrix Flask Ticket Application
+    After=network.target
+
+    [Service]
+    User=root
+    WorkingDirectory=/var/www/novatrix
+    ExecStart=/usr/bin/python3 /var/www/novatrix/app.py
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+  - systemctl daemon-reload
+  - systemctl enable novatrix.service
+  - systemctl start novatrix.service
+  - systemctl restart nginx
