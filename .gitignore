@@ -1,9 +1,18 @@
-# Ignorera alla lokala parameterfiler med känsliga data
+# Lokala parameterfiler med känslig data
 *.local.json
 *.local.yaml
 *.local.yml
 
+# Azure Functions lokala inställningar
+local.settings.json
+
+# Python virtuella miljöer och cacher
+.venv/
+env/
+__pycache__/
+*.pyc
+
 # SSH-nycklar och temporära filer
 *.pem
 *.key
-*.tmp 
+*.tmp
