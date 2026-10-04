@@ -59,6 +59,7 @@ Lösningen har verifierats genom hela flödet. Följande moment har bekräftats 
 
 1. **Deployment:** Lyckad publicering via Azure CLI och Azure Functions Core Tools (`func azure functionapp publish`).
 ![alt text](Functionapp-publish.png)
+![alt text](rg-novatrix-v40.png)
 
 2. **Formulär:** Åtkomst till formuläret och generering av unikt ärende-ID vid inskick.
 ![alt text](ticket-form.png)
