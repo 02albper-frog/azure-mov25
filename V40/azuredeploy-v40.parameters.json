@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageAccountName": {
+      "value": "stnovatrixv40albin"
+    },
+    "functionAppName": {
+      "value": "func-novatrix-v40-albin"
+    },
+    "powerAutomateUrl": {
+      "value": "CHANGE_ME_TO_YOUR_POWER_AUTOMATE_URL"
+    }
+  }
+}
