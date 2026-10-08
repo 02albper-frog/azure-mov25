@@ -1,0 +1,11 @@
+# Använd officiell och lättviktig Nginx-webbserver
+FROM nginx:alpine
+
+# Kopiera frontend-filen till Nginx webbrot
+COPY index.html /usr/share/nginx/html/index.html
+
+# Exponera port 80 för inkommande trafik
+EXPOSE 80
+
+# Starta Nginx i förgrunden
+CMD ["nginx", "-g", "daemon off;"]

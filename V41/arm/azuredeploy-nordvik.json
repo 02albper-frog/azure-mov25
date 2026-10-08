@@ -1,0 +1,718 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "powerAutomateUrl": {
+      "type": "securestring",
+      "metadata": {
+        "description": "HTTP POST-URL från Power Automate-flödet"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "namnSuffix": {
+      "type": "string",
+      "defaultValue": "02albper",
+      "metadata": {
+        "description": "Ditt användarnamn, används i globalt unika namn"
+      }
+    },
+    "lopnummer": {
+      "type": "string",
+      "defaultValue": "01",
+      "metadata": {
+        "description": "Löpnummer, ändra för en extra miljö (test/demo)"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "Production",
+      "metadata": {
+        "description": "Värde för taggen Environment"
+      }
+    },
+    "storageSku": {
+      "type": "string",
+      "defaultValue": "Standard_ZRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS"
+      ],
+      "metadata": {
+        "description": "Redundans för datalagringen. ZRS kräver zonstöd i regionen."
+      }
+    },
+    "forvaltareGruppId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Objekt-ID för grp-nordvik-forvaltare (tom = hoppa över)"
+      }
+    },
+    "ekonomiGruppId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Objekt-ID för grp-nordvik-ekonomi (tom = hoppa över)"
+      }
+    },
+    "klientIp": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Din publika IP, släpps in genom lagringens brandvägg (för felsökning). Tom = ingen."
+      }
+    },
+    "entraClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Klient-ID för app-registreringen (inloggning)"
+      }
+    },
+    "entraTenantId": {
+      "type": "string",
+      "defaultValue": "[subscription().tenantId]"
+    },
+    "webbPlats": {
+      "type": "string",
+      "defaultValue": "[parameters('location')]",
+      "metadata": {
+        "description": "Region för Container Apps. Byt om huvudregionen saknar kapacitet."
+      }
+    },
+    "statusNyckel": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Delad nyckel som Power Automate använder mot /api/uppdatera-status"
+      }
+    }
+  },
+  "variables": {
+    "tags": {
+      "Company": "Nordvik Fastigheter AB",
+      "Environment": "[parameters('environment')]",
+      "CostCenter": "Forvaltning"
+    },
+    "dataStorage": "[concat('stnordvik', parameters('namnSuffix'), parameters('lopnummer'))]",
+    "funcStorage": "[concat('stnordvikfn', parameters('namnSuffix'), parameters('lopnummer'))]",
+    "funcApp": "[concat('func-nordvik-backend-', parameters('namnSuffix'), parameters('lopnummer'))]",
+    "apiUrl": "[concat(variables('apiBase'), '/felanmalan')]",
+    "indexHtmlTemplateBase64": "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9InN2Ij4KPGhlYWQ+CiAgICA8bWV0YSBjaGFyc2V0PSJVVEYtOCI+CiAgICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCI+CiAgICA8dGl0bGU+SHlyZXNnw6RzdHBvcnRhbCAtIE5vcmR2aWsgRmFzdGlnaGV0ZXIgQUI8L3RpdGxlPgogICAgPHN0eWxlPgogICAgICAgIGJvZHkgeyBmb250LWZhbWlseTogQXJpYWwsIHNhbnMtc2VyaWY7IGJhY2tncm91bmQtY29sb3I6ICNmNGY2Zjk7IG1hcmdpbjogMDsgcGFkZGluZzogMjBweDsgZGlzcGxheTogZmxleDsganVzdGlmeS1jb250ZW50OiBjZW50ZXI7IH0KICAgICAgICAuY2FyZCB7IGJhY2tncm91bmQ6ICNmZmZmZmY7IHBhZGRpbmc6IDI1cHg7IGJvcmRlci1yYWRpdXM6IDhweDsgYm94LXNoYWRvdzogMCA0cHggNnB4IHJnYmEoMCwwLDAsMC4xKTsgbWF4LXdpZHRoOiA1NjBweDsgd2lkdGg6IDEwMCU7IH0KICAgICAgICBoMiB7IG1hcmdpbi10b3A6IDA7IGNvbG9yOiAjMWUyOTNiOyB9CiAgICAgICAgLmZvcm0tZ3JvdXAgeyBtYXJnaW4tYm90dG9tOiAxNXB4OyB9CiAgICAgICAgbGFiZWwgeyBkaXNwbGF5OiBibG9jazsgbWFyZ2luLWJvdHRvbTogNXB4OyBmb250LXdlaWdodDogYm9sZDsgY29sb3I6ICM0NzU1Njk7IH0KICAgICAgICBpbnB1dCwgc2VsZWN0LCB0ZXh0YXJlYSB7IHdpZHRoOiAxMDAlOyBwYWRkaW5nOiAxMHB4OyBib3JkZXI6IDFweCBzb2xpZCAjY2JkNWUxOyBib3JkZXItcmFkaXVzOiA0cHg7IGJveC1zaXppbmc6IGJvcmRlci1ib3g7IH0KICAgICAgICBidXR0b24geyBiYWNrZ3JvdW5kLWNvbG9yOiAjMDI4NGM3OyBjb2xvcjogd2hpdGU7IGJvcmRlcjogbm9uZTsgcGFkZGluZzogMTJweDsgYm9yZGVyLXJhZGl1czogNHB4OyBmb250LXNpemU6IDE2cHg7IGN1cnNvcjogcG9pbnRlcjsgfQogICAgICAgIGJ1dHRvbjpob3ZlciB7IGJhY2tncm91bmQtY29sb3I6ICMwMzY5YTE7IH0KICAgICAgICAuZnVsbCB7IHdpZHRoOiAxMDAlOyB9CiAgICAgICAgLmxpbmsgeyBiYWNrZ3JvdW5kOiBub25lOyBjb2xvcjogIzAyODRjNzsgcGFkZGluZzogMDsgZm9udC1zaXplOiAxNHB4OyB0ZXh0LWRlY29yYXRpb246IHVuZGVybGluZTsgfQogICAgICAgIC50b3BiYXIgeyBkaXNwbGF5OiBmbGV4OyBqdXN0aWZ5LWNvbnRlbnQ6IHNwYWNlLWJldHdlZW47IGFsaWduLWl0ZW1zOiBjZW50ZXI7IG1hcmdpbi1ib3R0b206IDE1cHg7IGZvbnQtc2l6ZTogMTRweDsgY29sb3I6ICM0NzU1Njk7IH0KICAgICAgICAudGFicyB7IGRpc3BsYXk6IGZsZXg7IGdhcDogOHB4OyBtYXJnaW4tYm90dG9tOiAyMHB4OyB9CiAgICAgICAgLnRhYiB7IGZsZXg6IDE7IGJhY2tncm91bmQ6ICNlMmU4ZjA7IGNvbG9yOiAjMWUyOTNiOyB9CiAgICAgICAgLnRhYi5hY3RpdmUgeyBiYWNrZ3JvdW5kOiAjMDI4NGM3OyBjb2xvcjogd2hpdGU7IH0KICAgICAgICAjc3RhdHVzIHsgbWFyZ2luLXRvcDogMTVweDsgZm9udC13ZWlnaHQ6IGJvbGQ7IHRleHQtYWxpZ246IGNlbnRlcjsgfQogICAgICAgIC5hcmVuZGUgeyBib3JkZXI6IDFweCBzb2xpZCAjZTJlOGYwOyBib3JkZXItcmFkaXVzOiA2cHg7IHBhZGRpbmc6IDEycHg7IG1hcmdpbi1ib3R0b206IDEwcHg7IH0KICAgICAgICAuYXJlbmRlIC5tZXRhIHsgZm9udC1zaXplOiAxM3B4OyBjb2xvcjogIzY0NzQ4YjsgbWFyZ2luLXRvcDogNHB4OyB9CiAgICAgICAgLmJhZGdlIHsgZGlzcGxheTogaW5saW5lLWJsb2NrOyBwYWRkaW5nOiAycHggOHB4OyBib3JkZXItcmFkaXVzOiAxMHB4OyBmb250LXNpemU6IDEycHg7IGJhY2tncm91bmQ6ICNlMGYyZmU7IGNvbG9yOiAjMDc1OTg1OyB9CiAgICAgICAgLmhpZGRlbiB7IGRpc3BsYXk6IG5vbmU7IH0KICAgICAgICAuc3RhdHVzLW1vdHRhZ2VuIHsgYmFja2dyb3VuZDogI2UwZjJmZTsgY29sb3I6ICMwNzU5ODU7IH0KICAgICAgICAuc3RhdHVzLXBhZ2FyIHsgYmFja2dyb3VuZDogI2ZlZjNjNzsgY29sb3I6ICM5MjQwMGU7IH0KICAgICAgICAuc3RhdHVzLWtsYXIgeyBiYWNrZ3JvdW5kOiAjZGNmY2U3OyBjb2xvcjogIzE2NjUzNDsgfQogICAgICAgIC5saXN0aGVhZCB7IGRpc3BsYXk6IGZsZXg7IGp1c3RpZnktY29udGVudDogZmxleC1lbmQ7IG1hcmdpbi1ib3R0b206IDEwcHg7IH0KICAgIDwvc3R5bGU+CjwvaGVhZD4KPGJvZHk+Cgo8ZGl2IGNsYXNzPSJjYXJkIj4KICAgIDxoMj5IeXJlc2fDpHN0cG9ydGFsIE5vcmR2aWs8L2gyPgoKICAgIDxkaXYgaWQ9ImxvZ2dlZE91dCI+CiAgICAgICAgPHA+TG9nZ2EgaW4gZsO2ciBhdHQgc2tpY2thIGVuIGZlbGFubcOkbGFuIG9jaCBzZSBkaW5hIMOkcmVuZGVuLjwvcD4KICAgICAgICA8YnV0dG9uIGNsYXNzPSJmdWxsIiBpZD0ibG9naW5CdG4iPkxvZ2dhIGluPC9idXR0b24+CiAgICA8L2Rpdj4KCiAgICA8ZGl2IGlkPSJsb2dnZWRJbiIgY2xhc3M9ImhpZGRlbiI+CiAgICAgICAgPGRpdiBjbGFzcz0idG9wYmFyIj4KICAgICAgICAgICAgPHNwYW4+SW5sb2dnYWQgc29tIDxzdHJvbmcgaWQ9InVzZXJOYW1lIj48L3N0cm9uZz48L3NwYW4+CiAgICAgICAgICAgIDxidXR0b24gY2xhc3M9ImxpbmsiIGlkPSJsb2dvdXRCdG4iPkxvZ2dhIHV0PC9idXR0b24+CiAgICAgICAgPC9kaXY+CgogICAgICAgIDxkaXYgY2xhc3M9InRhYnMiPgogICAgICAgICAgICA8YnV0dG9uIGNsYXNzPSJ0YWIgYWN0aXZlIiBpZD0idGFiTnkiPk55IGZlbGFubcOkbGFuPC9idXR0b24+CiAgICAgICAgICAgIDxidXR0b24gY2xhc3M9InRhYiIgaWQ9InRhYk1pbmEiPk1pbmEgYW5tw6RsbmluZ2FyPC9idXR0b24+CiAgICAgICAgPC9kaXY+CgogICAgICAgIDxkaXYgaWQ9InZpZXdOeSI+CiAgICAgICAgICAgIDxmb3JtIGlkPSJmZWxhbm1hbGFuRm9ybSI+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJmb3JtLWdyb3VwIj4KICAgICAgICAgICAgICAgICAgICA8bGFiZWw+UnVicmlrPC9sYWJlbD4KICAgICAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT0idGV4dCIgaWQ9InJ1YnJpayIgcmVxdWlyZWQgcGxhY2Vob2xkZXI9InQuZXguIFZhdHRlbmzDpGNrYSBpIGJhZHJ1bSI+CiAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9ImZvcm0tZ3JvdXAiPgogICAgICAgICAgICAgICAgICAgIDxsYWJlbD5GYXN0aWdoZXQ8L2xhYmVsPgogICAgICAgICAgICAgICAgICAgIDxpbnB1dCB0eXBlPSJ0ZXh0IiBpZD0iZmFzdGlnaGV0IiByZXF1aXJlZCBwbGFjZWhvbGRlcj0idC5leC4gU3RvcmdhdGFuIDEyIj4KICAgICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0iZm9ybS1ncm91cCI+CiAgICAgICAgICAgICAgICAgICAgPGxhYmVsPkzDpGdlbmhldCAvIExva2FsPC9sYWJlbD4KICAgICAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT0idGV4dCIgaWQ9ImxhZ2VuaGV0IiByZXF1aXJlZCBwbGFjZWhvbGRlcj0idC5leC4gTGdoIDExMDIiPgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJmb3JtLWdyb3VwIj4KICAgICAgICAgICAgICAgICAgICA8bGFiZWw+S2F0ZWdvcmk8L2xhYmVsPgogICAgICAgICAgICAgICAgICAgIDxzZWxlY3QgaWQ9ImthdGVnb3JpIiByZXF1aXJlZD4KICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT0iVsOkcm1lIj5Ww6RybWU8L29wdGlvbj4KICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT0iVmF0dGVuIj5WYXR0ZW48L29wdGlvbj4KICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT0iTMOlcyI+TMOlczwvb3B0aW9uPgogICAgICAgICAgICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPSJTa2FkYSI+U2thZGE8L29wdGlvbj4KICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT0iQmVseXNuaW5nIj5CZWx5c25pbmc8L29wdGlvbj4KICAgICAgICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT0iw5Z2cmlndCI+w5Z2cmlndDwvb3B0aW9uPgogICAgICAgICAgICAgICAgICAgIDwvc2VsZWN0PgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJmb3JtLWdyb3VwIj4KICAgICAgICAgICAgICAgICAgICA8bGFiZWw+QmVza3Jpdm5pbmc8L2xhYmVsPgogICAgICAgICAgICAgICAgICAgIDx0ZXh0YXJlYSBpZD0iYmVza3Jpdm5pbmciIHJvd3M9IjQiIHJlcXVpcmVkIHBsYWNlaG9sZGVyPSJCZXNrcml2IHByb2JsZW1ldCBzw6Ugbm9nZ3JhbnQgc29tIG3DtmpsaWd0Li4uIj48L3RleHRhcmVhPgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJmb3JtLWdyb3VwIj4KICAgICAgICAgICAgICAgICAgICA8bGFiZWw+Qmlmb2dhIGJpbGQgKjwvbGFiZWw+CiAgICAgICAgICAgICAgICAgICAgPGlucHV0IHR5cGU9ImZpbGUiIGlkPSJiaWxkRmlsIiBhY2NlcHQ9ImltYWdlLyoiIHJlcXVpcmVkPgogICAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgICA8YnV0dG9uIHR5cGU9InN1Ym1pdCIgY2xhc3M9ImZ1bGwiPlNraWNrYSBhbm3DpGxhbjwvYnV0dG9uPgogICAgICAgICAgICA8L2Zvcm0+CiAgICAgICAgPC9kaXY+CgogICAgICAgIDxkaXYgaWQ9InZpZXdNaW5hIiBjbGFzcz0iaGlkZGVuIj4KICAgICAgICAgICAgPGRpdiBjbGFzcz0ibGlzdGhlYWQiPjxidXR0b24gY2xhc3M9ImxpbmsiIGlkPSJyZWZyZXNoQnRuIj5VcHBkYXRlcmE8L2J1dHRvbj48L2Rpdj4KICAgICAgICAgICAgPGRpdiBpZD0ibGlzdGEiPkxhZGRhci4uLjwvZGl2PgogICAgICAgIDwvZGl2PgoKICAgICAgICA8ZGl2IGlkPSJzdGF0dXMiPjwvZGl2PgogICAgPC9kaXY+CjwvZGl2PgoKPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuLmpzZGVsaXZyLm5ldC9ucG0vQGF6dXJlL21zYWwtYnJvd3NlckAzLjI4LjEvbGliL21zYWwtYnJvd3Nlci5taW4uanMiPjwvc2NyaXB0Pgo8c2NyaXB0Pgpjb25zdCBBUElfQkFTRSA9ICdfX0FQSV9CQVNFX18nOwpjb25zdCBDTElFTlRfSUQgPSAnX19DTElFTlRfSURfXyc7CmNvbnN0IFRFTkFOVF9JRCA9ICdfX1RFTkFOVF9JRF9fJzsKY29uc3QgU0NPUEVTID0gWydvcGVuaWQnLCAncHJvZmlsZScsICdlbWFpbCddOwpjb25zdCBTVEFUVVNfS0xBU1MgPSB7ICdNb3R0YWdlbic6ICdtb3R0YWdlbicsICdVbmRlciBiZWhhbmRsaW5nJzogJ3BhZ2FyJywgJ8OFdGfDpHJkYWQnOiAna2xhcicgfTsKCmNvbnN0ICQgPSBpZCA9PiBkb2N1bWVudC5nZXRFbGVtZW50QnlJZChpZCk7CmxldCBtc2FsSW5zdGFuY2UgPSBudWxsOwpsZXQgYWNjb3VudCA9IG51bGw7CgpmdW5jdGlvbiBzZXRTdGF0dXModGV4dCwgY29sb3IpIHsgJCgnc3RhdHVzJykuc3R5bGUuY29sb3IgPSBjb2xvcjsgJCgnc3RhdHVzJykuaW5uZXJUZXh0ID0gdGV4dDsgfQoKYXN5bmMgZnVuY3Rpb24gaW5pdCgpIHsKICAgIGlmICh0eXBlb2YgbXNhbCA9PT0gJ3VuZGVmaW5lZCcpIHsKICAgICAgICBzZXRTdGF0dXMoJ0t1bmRlIGludGUgbGFkZGEgaW5sb2dnbmluZ3NiaWJsaW90ZWtldC4nLCAncmVkJyk7CiAgICAgICAgJCgnbG9nZ2VkT3V0JykuY2xhc3NMaXN0LnJlbW92ZSgnaGlkZGVuJyk7CiAgICAgICAgcmV0dXJuOwogICAgfQogICAgbXNhbEluc3RhbmNlID0gbmV3IG1zYWwuUHVibGljQ2xpZW50QXBwbGljYXRpb24oewogICAgICAgIGF1dGg6IHsgY2xpZW50SWQ6IENMSUVOVF9JRCwgYXV0aG9yaXR5OiAnaHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29tLycgKyBURU5BTlRfSUQsIHJlZGlyZWN0VXJpOiB3aW5kb3cubG9jYXRpb24ub3JpZ2luIH0sCiAgICAgICAgY2FjaGU6IHsgY2FjaGVMb2NhdGlvbjogJ3Nlc3Npb25TdG9yYWdlJyB9CiAgICB9KTsKICAgIGF3YWl0IG1zYWxJbnN0YW5jZS5pbml0aWFsaXplKCk7CiAgICBjb25zdCByZXN1bHQgPSBhd2FpdCBtc2FsSW5zdGFuY2UuaGFuZGxlUmVkaXJlY3RQcm9taXNlKCk7CiAgICBhY2NvdW50ID0gKHJlc3VsdCAmJiByZXN1bHQuYWNjb3VudCkgfHwgbXNhbEluc3RhbmNlLmdldEFsbEFjY291bnRzKClbMF0gfHwgbnVsbDsKICAgIHJlbmRlcigpOwp9CgpmdW5jdGlvbiByZW5kZXIoKSB7CiAgICAkKCdsb2dnZWRPdXQnKS5jbGFzc0xpc3QudG9nZ2xlKCdoaWRkZW4nLCAhIWFjY291bnQpOwogICAgJCgnbG9nZ2VkSW4nKS5jbGFzc0xpc3QudG9nZ2xlKCdoaWRkZW4nLCAhYWNjb3VudCk7CiAgICBpZiAoYWNjb3VudCkgeyAkKCd1c2VyTmFtZScpLnRleHRDb250ZW50ID0gYWNjb3VudC5uYW1lIHx8IGFjY291bnQudXNlcm5hbWU7IH0KfQoKYXN5bmMgZnVuY3Rpb24gZ2V0SWRUb2tlbigpIHsKICAgIHRyeSB7CiAgICAgICAgY29uc3QgciA9IGF3YWl0IG1zYWxJbnN0YW5jZS5hY3F1aXJlVG9rZW5TaWxlbnQoeyBzY29wZXM6IFNDT1BFUywgYWNjb3VudDogYWNjb3VudCB9KTsKICAgICAgICByZXR1cm4gci5pZFRva2VuOwogICAgfSBjYXRjaCAoZSkgewogICAgICAgIGlmIChlIGluc3RhbmNlb2YgbXNhbC5JbnRlcmFjdGlvblJlcXVpcmVkQXV0aEVycm9yKSB7CiAgICAgICAgICAgIGF3YWl0IG1zYWxJbnN0YW5jZS5hY3F1aXJlVG9rZW5SZWRpcmVjdCh7IHNjb3BlczogU0NPUEVTLCBhY2NvdW50OiBhY2NvdW50IH0pOwogICAgICAgICAgICByZXR1cm4gbnVsbDsKICAgICAgICB9CiAgICAgICAgdGhyb3cgZTsKICAgIH0KfQoKY29uc3QgdG9CYXNlNjQgPSBmaWxlID0+IG5ldyBQcm9taXNlKChyZXNvbHZlLCByZWplY3QpID0+IHsKICAgIGNvbnN0IHJlYWRlciA9IG5ldyBGaWxlUmVhZGVyKCk7CiAgICByZWFkZXIucmVhZEFzRGF0YVVSTChmaWxlKTsKICAgIHJlYWRlci5vbmxvYWQgPSAoKSA9PiByZXNvbHZlKHJlYWRlci5yZXN1bHQpOwogICAgcmVhZGVyLm9uZXJyb3IgPSBlcnJvciA9PiByZWplY3QoZXJyb3IpOwp9KTsKCiQoJ2xvZ2luQnRuJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKSA9PiBtc2FsSW5zdGFuY2UubG9naW5SZWRpcmVjdCh7IHNjb3BlczogU0NPUEVTIH0pKTsKJCgnbG9nb3V0QnRuJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKSA9PiBtc2FsSW5zdGFuY2UubG9nb3V0UmVkaXJlY3QoeyBhY2NvdW50OiBhY2NvdW50IH0pKTsKCmZ1bmN0aW9uIHNob3dUYWIobWluYSkgewogICAgJCgndmlld055JykuY2xhc3NMaXN0LnRvZ2dsZSgnaGlkZGVuJywgbWluYSk7CiAgICAkKCd2aWV3TWluYScpLmNsYXNzTGlzdC50b2dnbGUoJ2hpZGRlbicsICFtaW5hKTsKICAgICQoJ3RhYk55JykuY2xhc3NMaXN0LnRvZ2dsZSgnYWN0aXZlJywgIW1pbmEpOwogICAgJCgndGFiTWluYScpLmNsYXNzTGlzdC50b2dnbGUoJ2FjdGl2ZScsIG1pbmEpOwogICAgc2V0U3RhdHVzKCcnLCAnIzAyODRjNycpOwogICAgaWYgKG1pbmEpIGxvYWRMaXN0KCk7Cn0KJCgncmVmcmVzaEJ0bicpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgbG9hZExpc3QpOwokKCd0YWJOeScpLmFkZEV2ZW50TGlzdGVuZXIoJ2NsaWNrJywgKCkgPT4gc2hvd1RhYihmYWxzZSkpOwokKCd0YWJNaW5hJykuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLCAoKSA9PiBzaG93VGFiKHRydWUpKTsKCmFzeW5jIGZ1bmN0aW9uIGxvYWRMaXN0KCkgewogICAgY29uc3QgbGlzdGEgPSAkKCdsaXN0YScpOwogICAgbGlzdGEudGV4dENvbnRlbnQgPSAnTGFkZGFyLi4uJzsKICAgIHRyeSB7CiAgICAgICAgY29uc3QgdG9rZW4gPSBhd2FpdCBnZXRJZFRva2VuKCk7CiAgICAgICAgaWYgKCF0b2tlbikgcmV0dXJuOwogICAgICAgIGNvbnN0IHJlc3BvbnNlID0gYXdhaXQgZmV0Y2goQVBJX0JBU0UgKyAnL21pbmEtYW5tYWxuaW5nYXInLCB7IGhlYWRlcnM6IHsgJ0F1dGhvcml6YXRpb24nOiAnQmVhcmVyICcgKyB0b2tlbiB9IH0pOwogICAgICAgIGNvbnN0IGRhdGEgPSBhd2FpdCByZXNwb25zZS5qc29uKCk7CiAgICAgICAgaWYgKCFyZXNwb25zZS5vaykgdGhyb3cgbmV3IEVycm9yKGRhdGEubWVzc2FnZSB8fCAnRmVsJyk7CiAgICAgICAgbGlzdGEudGV4dENvbnRlbnQgPSAnJzsKICAgICAgICBpZiAoZGF0YS5hbm1hbG5pbmdhci5sZW5ndGggPT09IDApIHsgbGlzdGEudGV4dENvbnRlbnQgPSAnRHUgaGFyIGluZ2EgYW5tw6RsbmluZ2FyIMOkbi4nOyByZXR1cm47IH0KICAgICAgICBkYXRhLmFubWFsbmluZ2FyLmZvckVhY2goYSA9PiB7CiAgICAgICAgICAgIGNvbnN0IGRpdiA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpOwogICAgICAgICAgICBkaXYuY2xhc3NOYW1lID0gJ2FyZW5kZSc7CiAgICAgICAgICAgIGNvbnN0IHRpdGxlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc3Ryb25nJyk7CiAgICAgICAgICAgIHRpdGxlLnRleHRDb250ZW50ID0gYS5ydWJyaWs7CiAgICAgICAgICAgIGNvbnN0IGJhZGdlID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnc3BhbicpOwogICAgICAgICAgICBiYWRnZS5jbGFzc05hbWUgPSAnYmFkZ2Ugc3RhdHVzLScgKyAoU1RBVFVTX0tMQVNTW2Euc3RhdHVzXSB8fCAnbW90dGFnZW4nKTsKICAgICAgICAgICAgYmFkZ2UudGV4dENvbnRlbnQgPSBhLnN0YXR1czsKICAgICAgICAgICAgYmFkZ2Uuc3R5bGUubWFyZ2luTGVmdCA9ICc4cHgnOwogICAgICAgICAgICBjb25zdCBtZXRhID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7CiAgICAgICAgICAgIG1ldGEuY2xhc3NOYW1lID0gJ21ldGEnOwogICAgICAgICAgICBtZXRhLnRleHRDb250ZW50ID0gYS5hcmVuZGVJZCArICcgwrcgJyArIGEua2F0ZWdvcmkgKyAnIMK3ICcgKyBhLmZhc3RpZ2hldCArICcsICcgKyBhLmxhZ2VuaGV0ICsgJyDCtyAnICsgYS5za2FwYWQucmVwbGFjZSgnVCcsICcgJykucmVwbGFjZSgnWicsICcnKTsKICAgICAgICAgICAgZGl2LmFwcGVuZCh0aXRsZSwgYmFkZ2UsIG1ldGEpOwogICAgICAgICAgICBsaXN0YS5hcHBlbmRDaGlsZChkaXYpOwogICAgICAgIH0pOwogICAgfSBjYXRjaCAoZXJyKSB7CiAgICAgICAgbGlzdGEudGV4dENvbnRlbnQgPSAnS3VuZGUgaW50ZSBow6RtdGEgZGluYSBhbm3DpGxuaW5nYXIuJzsKICAgIH0KfQoKJCgnZmVsYW5tYWxhbkZvcm0nKS5hZGRFdmVudExpc3RlbmVyKCdzdWJtaXQnLCBhc3luYyAoZSkgPT4gewogICAgZS5wcmV2ZW50RGVmYXVsdCgpOwogICAgc2V0U3RhdHVzKCdTa2lja2FyIGFubcOkbGFuLi4uJywgJyMwMjg0YzcnKTsKCiAgICBjb25zdCBmaWxlSW5wdXQgPSAkKCdiaWxkRmlsJyk7CiAgICBpZiAoZmlsZUlucHV0LmZpbGVzLmxlbmd0aCA9PT0gMCkgeyBzZXRTdGF0dXMoJ0R1IG3DpXN0ZSBiaWZvZ2EgZW4gYmlsZC4nLCAncmVkJyk7IHJldHVybjsgfQogICAgY29uc3QgZmlsZSA9IGZpbGVJbnB1dC5maWxlc1swXTsKCiAgICBsZXQgYmlsZEJhc2U2NCA9ICcnOwogICAgdHJ5IHsgYmlsZEJhc2U2NCA9IGF3YWl0IHRvQmFzZTY0KGZpbGUpOyB9CiAgICBjYXRjaCAoZXJyKSB7IHNldFN0YXR1cygnS3VuZGUgaW50ZSBsw6RzYSBiaWxkZmlsZW4uJywgJ3JlZCcpOyByZXR1cm47IH0KCiAgICBjb25zdCBwYXlsb2FkID0gewogICAgICAgIHJ1YnJpazogJCgncnVicmlrJykudmFsdWUsCiAgICAgICAgZmFzdGlnaGV0OiAkKCdmYXN0aWdoZXQnKS52YWx1ZSwKICAgICAgICBsYWdlbmhldDogJCgnbGFnZW5oZXQnKS52YWx1ZSwKICAgICAgICBrYXRlZ29yaTogJCgna2F0ZWdvcmknKS52YWx1ZSwKICAgICAgICBiZXNrcml2bmluZzogJCgnYmVza3Jpdm5pbmcnKS52YWx1ZSwKICAgICAgICBiaWxkQmFzZTY0OiBiaWxkQmFzZTY0LAogICAgICAgIGJpbGRGaWxuYW1uOiBmaWxlLm5hbWUKICAgIH07CgogICAgdHJ5IHsKICAgICAgICBjb25zdCB0b2tlbiA9IGF3YWl0IGdldElkVG9rZW4oKTsKICAgICAgICBpZiAoIXRva2VuKSByZXR1cm47CiAgICAgICAgY29uc3QgcmVzcG9uc2UgPSBhd2FpdCBmZXRjaChBUElfQkFTRSArICcvZmVsYW5tYWxhbicsIHsKICAgICAgICAgICAgbWV0aG9kOiAnUE9TVCcsCiAgICAgICAgICAgIGhlYWRlcnM6IHsgJ0NvbnRlbnQtVHlwZSc6ICdhcHBsaWNhdGlvbi9qc29uJywgJ0F1dGhvcml6YXRpb24nOiAnQmVhcmVyICcgKyB0b2tlbiB9LAogICAgICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeShwYXlsb2FkKQogICAgICAgIH0pOwogICAgICAgIGNvbnN0IGRhdGEgPSBhd2FpdCByZXNwb25zZS5qc29uKCk7CiAgICAgICAgaWYgKHJlc3BvbnNlLm9rKSB7CiAgICAgICAgICAgIHNldFN0YXR1cygnRmVsYW5tw6RsYW4gaGFyIHNraWNrYXRzISBEaXR0IMOkcmVuZGUtSUQgw6RyOiAnICsgZGF0YS5hcmVuZGVJZCwgJ2dyZWVuJyk7CiAgICAgICAgICAgICQoJ2ZlbGFubWFsYW5Gb3JtJykucmVzZXQoKTsKICAgICAgICB9IGVsc2UgaWYgKHJlc3BvbnNlLnN0YXR1cyA9PT0gNDAxKSB7CiAgICAgICAgICAgIHNldFN0YXR1cygnRGluIGlubG9nZ25pbmcgaGFyIGfDpXR0IHV0LiBMb2dnYSBpbiBpZ2VuLicsICdyZWQnKTsKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICB0aHJvdyBuZXcgRXJyb3IoZGF0YS5tZXNzYWdlIHx8ICdLdW5kZSBpbnRlIHNraWNrYSBmZWxhbm3DpGxhbicpOwogICAgICAgIH0KICAgIH0gY2F0Y2ggKGVycikgewogICAgICAgIHNldFN0YXR1cygnRmVsIHZpZCBzw6RuZG5pbmcuIEbDtnJzw7ZrIGlnZW4uJywgJ3JlZCcpOwogICAgfQp9KTsKCmluaXQoKTsKPC9zY3JpcHQ+Cgo8L2JvZHk+CjwvaHRtbD4K",
+    "roleBlobContributor": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+    "roleBlobReader": "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
+    "roleReader": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
+    "roleBlobOwner": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
+    "roleQueueContributor": "974c5e8b-45b9-4653-ba55-5f855dd0fb88",
+    "roleTableContributor": "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3",
+    "storageIpRules": "[if(empty(parameters('klientIp')), createArray(), createArray(createObject('value', parameters('klientIp'), 'action', 'Allow')))]",
+    "indexHtml": "[replace(replace(replace(base64ToString(variables('indexHtmlTemplateBase64')), '__API_BASE__', variables('apiBase')), '__CLIENT_ID__', parameters('entraClientId')), '__TENANT_ID__', parameters('entraTenantId'))]",
+    "apiBase": "[concat('https://', variables('funcApp'), '.azurewebsites.net/api')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-05-01",
+      "name": "nsg-nordvik",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-out-dns",
+            "properties": {
+              "priority": 100,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "*",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "168.63.129.16",
+              "destinationPortRange": "53"
+            }
+          },
+          {
+            "name": "allow-out-storage",
+            "properties": {
+              "priority": 110,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "Storage",
+              "destinationPortRange": "443"
+            }
+          },
+          {
+            "name": "allow-out-entra",
+            "properties": {
+              "priority": 120,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "AzureActiveDirectory",
+              "destinationPortRange": "443"
+            }
+          },
+          {
+            "name": "allow-out-https",
+            "properties": {
+              "priority": 130,
+              "direction": "Outbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "Internet",
+              "destinationPortRange": "443"
+            }
+          },
+          {
+            "name": "deny-out-all",
+            "properties": {
+              "priority": 4000,
+              "direction": "Outbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-05-01",
+      "name": "vnet-nordvik",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', 'nsg-nordvik')]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "snet-nordvik-func",
+            "properties": {
+              "addressPrefix": "10.0.3.0/24",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'nsg-nordvik')]"
+              },
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage"
+                }
+              ],
+              "delegations": [
+                {
+                  "name": "flex-delegation",
+                  "properties": {
+                    "serviceName": "Microsoft.App/environments"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('dataStorage')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "[parameters('storageSku')]"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": false,
+        "defaultToOAuthAuthentication": true,
+        "minimumTlsVersion": "TLS1_2",
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Deny",
+          "ipRules": "[variables('storageIpRules')]",
+          "virtualNetworkRules": [
+            {
+              "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet-nordvik', 'snet-nordvik-func')]",
+              "action": "Allow"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'vnet-nordvik')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('dataStorage'), '/default/felanmalningar')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ],
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('dataStorage'), '/default/dokument')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ],
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('dataStorage'), '/default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ],
+      "properties": {
+        "policy": {
+          "rules": [
+            {
+              "enabled": true,
+              "name": "LifecycleNordvikBlobs",
+              "type": "Lifecycle",
+              "definition": {
+                "actions": {
+                  "baseBlob": {
+                    "tierToCool": {
+                      "daysAfterModificationGreaterThan": 90
+                    }
+                  }
+                },
+                "filters": {
+                  "blobTypes": [
+                    "blockBlob"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('funcStorage')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2",
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Deny",
+          "ipRules": "[variables('storageIpRules')]",
+          "virtualNetworkRules": [
+            {
+              "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet-nordvik', 'snet-nordvik-func')]",
+              "action": "Allow"
+            }
+          ]
+        },
+        "allowSharedKeyAccess": false,
+        "defaultToOAuthAuthentication": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'vnet-nordvik')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "asp-nordvik-flex",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "tier": "FlexConsumption",
+        "name": "FC1"
+      },
+      "kind": "functionapp",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('funcApp')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', 'asp-nordvik-flex')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('funcStorage'), 'default', 'deploymentpackage')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', 'vnet-nordvik')]",
+        "[resourceId('Microsoft.App/containerApps', 'ca-nordvik-web')]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', 'asp-nordvik-flex')]",
+        "httpsOnly": true,
+        "virtualNetworkSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet-nordvik', 'snet-nordvik-func')]",
+        "functionAppConfig": {
+          "deployment": {
+            "storage": {
+              "type": "blobContainer",
+              "value": "[concat('https://', variables('funcStorage'), '.blob.core.windows.net/deploymentpackage')]",
+              "authentication": {
+                "type": "SystemAssignedIdentity"
+              }
+            }
+          },
+          "scaleAndConcurrency": {
+            "maximumInstanceCount": 40,
+            "instanceMemoryMB": 2048
+          },
+          "runtime": {
+            "name": "python",
+            "version": "3.11"
+          }
+        },
+        "siteConfig": {
+          "minTlsVersion": "1.2",
+          "ftpsState": "Disabled",
+          "cors": {
+            "allowedOrigins": [
+              "[concat('https://', reference(resourceId('Microsoft.App/containerApps', 'ca-nordvik-web')).configuration.ingress.fqdn)]"
+            ]
+          },
+          "appSettings": [
+            {
+              "name": "AzureWebJobsStorage__accountName",
+              "value": "[variables('funcStorage')]"
+            },
+            {
+              "name": "POWER_AUTOMATE_URL",
+              "value": "[parameters('powerAutomateUrl')]"
+            },
+            {
+              "name": "DATA_STORAGE_ACCOUNT_URL",
+              "value": "[concat('https://', variables('dataStorage'), '.blob.core.windows.net')]"
+            },
+            {
+              "name": "ENTRA_TENANT_ID",
+              "value": "[parameters('entraTenantId')]"
+            },
+            {
+              "name": "ENTRA_CLIENT_ID",
+              "value": "[parameters('entraClientId')]"
+            },
+            {
+              "name": "DATA_TABLE_ENDPOINT",
+              "value": "[concat('https://', variables('dataStorage'), '.table.core.windows.net')]"
+            },
+            {
+              "name": "STATUS_API_KEY",
+              "value": "[parameters('statusNyckel')]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage')), resourceId('Microsoft.Web/sites', variables('funcApp')), variables('roleBlobContributor'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+        "[resourceId('Microsoft.Web/sites', variables('funcApp'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleBlobContributor'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcApp')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "condition": "[not(empty(parameters('forvaltareGruppId')))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage')), parameters('forvaltareGruppId'), variables('roleBlobContributor'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleBlobContributor'))]",
+        "principalId": "[parameters('forvaltareGruppId')]",
+        "principalType": "Group"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "condition": "[not(empty(parameters('ekonomiGruppId')))]",
+      "name": "[guid(resourceGroup().id, parameters('ekonomiGruppId'), variables('roleReader'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleReader'))]",
+        "principalId": "[parameters('ekonomiGruppId')]",
+        "principalType": "Group"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "condition": "[not(empty(parameters('ekonomiGruppId')))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage')), parameters('ekonomiGruppId'), variables('roleBlobReader'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleBlobReader'))]",
+        "principalId": "[parameters('ekonomiGruppId')]",
+        "principalType": "Group"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('funcStorage'), '/default/deploymentpackage')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]"
+      ],
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage')), resourceId('Microsoft.Web/sites', variables('funcApp')), variables('roleBlobOwner'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+        "[resourceId('Microsoft.Web/sites', variables('funcApp'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleBlobOwner'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcApp')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage')), resourceId('Microsoft.Web/sites', variables('funcApp')), variables('roleQueueContributor'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+        "[resourceId('Microsoft.Web/sites', variables('funcApp'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleQueueContributor'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcApp')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage')), resourceId('Microsoft.Web/sites', variables('funcApp')), variables('roleTableContributor'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('funcStorage'))]",
+        "[resourceId('Microsoft.Web/sites', variables('funcApp'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleTableContributor'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcApp')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "log-nordvik",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "cae-nordvik",
+      "location": "[parameters('webbPlats')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', 'log-nordvik')]"
+      ],
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', 'log-nordvik'), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', 'log-nordvik'), '2022-10-01').primarySharedKey]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "ca-nordvik-web",
+      "location": "[parameters('webbPlats')]",
+      "tags": "[variables('tags')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', 'cae-nordvik')]"
+      ],
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', 'cae-nordvik')]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 80,
+            "transport": "auto",
+            "allowInsecure": false
+          },
+          "secrets": [
+            {
+              "name": "indexhtml",
+              "value": "[variables('indexHtml')]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "web",
+              "image": "nginx:alpine",
+              "resources": {
+                "cpu": 0.25,
+                "memory": "0.5Gi"
+              },
+              "volumeMounts": [
+                {
+                  "volumeName": "html",
+                  "mountPath": "/usr/share/nginx/html"
+                }
+              ]
+            }
+          ],
+          "volumes": [
+            {
+              "name": "html",
+              "storageType": "Secret",
+              "secrets": [
+                {
+                  "secretRef": "indexhtml",
+                  "path": "index.html"
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": 0,
+            "maxReplicas": 5,
+            "rules": [
+              {
+                "name": "kontorstid",
+                "custom": {
+                  "type": "cron",
+                  "metadata": {
+                    "timezone": "Europe/Stockholm",
+                    "start": "0 6 * * *",
+                    "end": "0 23 * * *",
+                    "desiredReplicas": "2"
+                  }
+                }
+              },
+              {
+                "name": "http-belastning",
+                "http": {
+                  "metadata": {
+                    "concurrentRequests": "50"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(variables('dataStorage'), '/default/felanmalningar')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage')), resourceId('Microsoft.Web/sites', variables('funcApp')), variables('roleTableContributor'))]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('dataStorage'))]",
+        "[resourceId('Microsoft.Web/sites', variables('funcApp'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleTableContributor'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcApp')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    }
+  ],
+  "outputs": {
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('dataStorage')]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "value": "[variables('funcApp')]"
+    },
+    "webUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(resourceId('Microsoft.App/containerApps', 'ca-nordvik-web')).configuration.ingress.fqdn)]"
+    },
+    "backendUrl": {
+      "type": "string",
+      "value": "[variables('apiUrl')]"
+    }
+  }
+}

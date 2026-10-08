@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyresgästportal - Nordvik Fastigheter AB</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .card { background: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 560px; width: 100%; }
+        h2 { margin-top: 0; color: #1e293b; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #475569; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #0284c7; color: white; border: none; padding: 12px; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #0369a1; }
+        .full { width: 100%; }
+        .link { background: none; color: #0284c7; padding: 0; font-size: 14px; text-decoration: underline; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 14px; color: #475569; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .tab { flex: 1; background: #e2e8f0; color: #1e293b; }
+        .tab.active { background: #0284c7; color: white; }
+        #status { margin-top: 15px; font-weight: bold; text-align: center; }
+        .arende { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+        .arende .meta { font-size: 13px; color: #64748b; margin-top: 4px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: #e0f2fe; color: #075985; }
+        .hidden { display: none; }
+        .status-mottagen { background: #e0f2fe; color: #075985; }
+        .status-pagar { background: #fef3c7; color: #92400e; }
+        .status-klar { background: #dcfce7; color: #166534; }
+        .listhead { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Hyresgästportal Nordvik</h2>
+
+    <div id="loggedOut">
+        <p>Logga in för att skicka en felanmälan och se dina ärenden.</p>
+        <button class="full" id="loginBtn">Logga in</button>
+    </div>
+
+    <div id="loggedIn" class="hidden">
+        <div class="topbar">
+            <span>Inloggad som <strong id="userName"></strong></span>
+            <button class="link" id="logoutBtn">Logga ut</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" id="tabNy">Ny felanmälan</button>
+            <button class="tab" id="tabMina">Mina anmälningar</button>
+        </div>
+
+        <div id="viewNy">
+            <form id="felanmalanForm">
+                <div class="form-group">
+                    <label>Rubrik</label>
+                    <input type="text" id="rubrik" required placeholder="t.ex. Vattenläcka i badrum">
+                </div>
+                <div class="form-group">
+                    <label>Fastighet</label>
+                    <input type="text" id="fastighet" required placeholder="t.ex. Storgatan 12">
+                </div>
+                <div class="form-group">
+                    <label>Lägenhet / Lokal</label>
+                    <input type="text" id="lagenhet" required placeholder="t.ex. Lgh 1102">
+                </div>
+                <div class="form-group">
+                    <label>Kategori</label>
+                    <select id="kategori" required>
+                        <option value="Värme">Värme</option>
+                        <option value="Vatten">Vatten</option>
+                        <option value="Lås">Lås</option>
+                        <option value="Skada">Skada</option>
+                        <option value="Belysning">Belysning</option>
+                        <option value="Övrigt">Övrigt</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Beskrivning</label>
+                    <textarea id="beskrivning" rows="4" required placeholder="Beskriv problemet så noggrant som möjligt..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Bifoga bild *</label>
+                    <input type="file" id="bildFil" accept="image/*" required>
+                </div>
+                <button type="submit" class="full">Skicka anmälan</button>
+            </form>
+        </div>
+
+        <div id="viewMina" class="hidden">
+            <div class="listhead"><button class="link" id="refreshBtn">Uppdatera</button></div>
+            <div id="lista">Laddar...</div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script>
+const API_BASE = '__API_BASE__';
+const CLIENT_ID = '__CLIENT_ID__';
+const TENANT_ID = '__TENANT_ID__';
+const SCOPES = ['openid', 'profile', 'email'];
+const STATUS_KLASS = { 'Mottagen': 'mottagen', 'Under behandling': 'pagar', 'Åtgärdad': 'klar' };
+
+const $ = id => document.getElementById(id);
+let msalInstance = null;
+let account = null;
+
+function setStatus(text, color) { $('status').style.color = color; $('status').innerText = text; }
+
+async function init() {
+    if (typeof msal === 'undefined') {
+        setStatus('Kunde inte ladda inloggningsbiblioteket.', 'red');
+        $('loggedOut').classList.remove('hidden');
+        return;
+    }
+    msalInstance = new msal.PublicClientApplication({
+        auth: { clientId: CLIENT_ID, authority: 'https://login.microsoftonline.com/' + TENANT_ID, redirectUri: window.location.origin },
+        cache: { cacheLocation: 'sessionStorage' }
+    });
+    await msalInstance.initialize();
+    const result = await msalInstance.handleRedirectPromise();
+    account = (result && result.account) || msalInstance.getAllAccounts()[0] || null;
+    render();
+}
+
+function render() {
+    $('loggedOut').classList.toggle('hidden', !!account);
+    $('loggedIn').classList.toggle('hidden', !account);
+    if (account) { $('userName').textContent = account.name || account.username; }
+}
+
+async function getIdToken() {
+    try {
+        const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: account });
+        return r.idToken;
+    } catch (e) {
+        if (e instanceof msal.InteractionRequiredAuthError) {
+            await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account: account });
+            return null;
+        }
+        throw e;
+    }
+}
+
+const toBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+});
+
+$('loginBtn').addEventListener('click', () => msalInstance.loginRedirect({ scopes: SCOPES }));
+$('logoutBtn').addEventListener('click', () => msalInstance.logoutRedirect({ account: account }));
+
+function showTab(mina) {
+    $('viewNy').classList.toggle('hidden', mina);
+    $('viewMina').classList.toggle('hidden', !mina);
+    $('tabNy').classList.toggle('active', !mina);
+    $('tabMina').classList.toggle('active', mina);
+    setStatus('', '#0284c7');
+    if (mina) loadList();
+}
+$('refreshBtn').addEventListener('click', loadList);
+$('tabNy').addEventListener('click', () => showTab(false));
+$('tabMina').addEventListener('click', () => showTab(true));
+
+async function loadList() {
+    const lista = $('lista');
+    lista.textContent = 'Laddar...';
+    try {
+        const token = await getIdToken();
+        if (!token) return;
+        const response = await fetch(API_BASE + '/mina-anmalningar', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Fel');
+        lista.textContent = '';
+        if (data.anmalningar.length === 0) { lista.textContent = 'Du har inga anmälningar än.'; return; }
+        data.anmalningar.forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'arende';
+            const title = document.createElement('strong');
+            title.textContent = a.rubrik;
+            const badge = document.createElement('span');
+            badge.className = 'badge status-' + (STATUS_KLASS[a.status] || 'mottagen');
+            badge.textContent = a.status;
+            badge.style.marginLeft = '8px';
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = a.arendeId + ' · ' + a.kategori + ' · ' + a.fastighet + ', ' + a.lagenhet + ' · ' + a.skapad.replace('T', ' ').replace('Z', '');
+            div.append(title, badge, meta);
+            lista.appendChild(div);
+        });
+    } catch (err) {
+        lista.textContent = 'Kunde inte hämta dina anmälningar.';
+    }
+}
+
+$('felanmalanForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setStatus('Skickar anmälan...', '#0284c7');
+
+    const fileInput = $('bildFil');
+    if (fileInput.files.length === 0) { setStatus('Du måste bifoga en bild.', 'red'); return; }
+    const file = fileInput.files[0];
+
+    let bildBase64 = '';
+    try { bildBase64 = await toBase64(file); }
+    catch (err) { setStatus('Kunde inte läsa bildfilen.', 'red'); return; }
+
+    const payload = {
+        rubrik: $('rubrik').value,
+        fastighet: $('fastighet').value,
+        lagenhet: $('lagenhet').value,
+        kategori: $('kategori').value,
+        beskrivning: $('beskrivning').value,
+        bildBase64: bildBase64,
+        bildFilnamn: file.name
+    };
+
+    try {
+        const token = await getIdToken();
+        if (!token) return;
+        const response = await fetch(API_BASE + '/felanmalan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (response.ok) {
+            setStatus('Felanmälan har skickats! Ditt ärende-ID är: ' + data.arendeId, 'green');
+            $('felanmalanForm').reset();
+        } else if (response.status === 401) {
+            setStatus('Din inloggning har gått ut. Logga in igen.', 'red');
+        } else {
+            throw new Error(data.message || 'Kunde inte skicka felanmälan');
+        }
+    } catch (err) {
+        setStatus('Fel vid sändning. Försök igen.', 'red');
+    }
+});
+
+init();
+</script>
+
+</body>
+</html>

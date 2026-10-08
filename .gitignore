@@ -1,4 +1,4 @@
-# Lokala parameterfiler med känslig data
+# Lokala parameterfiler med känslig data (t.ex. Power Automate-URL med signatur)
 *.local.json
 *.local.yaml
 *.local.yml
@@ -6,13 +6,35 @@
 # Azure Functions lokala inställningar
 local.settings.json
 
+# Python-paket som skapas vid publicering av Azure Functions
+.python_packages/
+
 # Python virtuella miljöer och cacher
 .venv/
 env/
+venv/
 __pycache__/
 *.pyc
 
-# SSH-nycklar och temporära filer
+# Miljöfiler med hemligheter
+.env
+.env.*
+
+# SSH-nycklar, certifikat och temporära filer
 *.pem
 *.key
+*.pfx
 *.tmp
+
+# Zip-paket och loggar
+*.zip
+*.log
+
+# Azure CLI och Functions Core Tools
+.azure/
+.azurefunctions/
+
+# Editor- och systemfiler
+.vscode/
+.DS_Store
+Thumbs.db
