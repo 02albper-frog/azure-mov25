@@ -279,7 +279,6 @@ Portalen är publikt nåbar, medan lagringen av anmälningar och bilder ligger s
 ![alt text](Lagring-livscykel.png)
 *Livscykelregeln: Cool efter 90 dagar.*
 
-> **Att komplettera:** Lägg in två bilder från portalen (**Storage browser**, med Entra-inloggning som autentisering): en bild i containern `felanmalningar`, och en rad i tabellen `felanmalningar`. Se till att kontonamnet `stnordvik02albper01` syns i bilden.
 
 ---
 
@@ -369,10 +368,6 @@ func azure functionapp publish func-nordvik-backend-02albper01 --python
 ![alt text](Taggar.png)
 *Alla resurser har taggarna `CostCenter` och `Environment`.*
 
-> **Att komplettera:**
-> 1. Lägg in en bild på GitHub-repot med mappstrukturen, och länken överst i dokumentet.
-> 2. Beviset på återskapning är att du har rivit ner miljön (`az group delete --name rg-nordvik --yes`, `az group exists` ger `false`) och byggt upp den på nytt med skriptet. Lägg in utskrifterna om du sparat dem.
-> 3. Kontrollera innan du pushar att inga hemligheter följer med: `git ls-files | grep -E "local|python_packages"` ska ge tom utskrift.
 
 ---
 
@@ -439,10 +434,6 @@ Anmälan går genom flera tjänster: webbläsare, Container Apps, Entra ID, Azur
 ![alt text](Status-efter.png)
 *Hilda ser Mottagen innan förvaltaren ändrar, och Under behandling efteråt.*
 
-> **Att komplettera:**
-> 1. Byt testbilden i anmälningarna mot en neutral bild (till exempel ett foto av en dropp eller en skadad vägg). Bilagorna i nuvarande bilder visar skärmklipp från en tidigare uppgift.
-> 2. Exportera båda flödena till `m365/` och granska filerna så att ingen nyckel eller URL med signatur följer med.
-> 3. Ta en bild på hela statusflödet med nyckeln dold i HTTP-steget.
 
 ### Avgränsningar i automationen
 
@@ -466,7 +457,7 @@ Anmälan går genom flera tjänster: webbläsare, Container Apps, Entra ID, Azur
 | Alla resurser taggade | Taggar på alla resurser som går att tagga | Verifierat |
 | Likadan test- eller demomiljö snabbt | Parametrar (`lopnummer`, `namnSuffix`) och skript | Skriptet verifierat för en miljö |
 
-> **Att komplettera:** Lägg in en bild från Azures priskalkylator (eller Cost Management efter ett par dygn, grupperat på taggen `CostCenter`) och en kort kostnadsuppskattning. Jag har inte räknat på kostnaden, så skriv inga siffror som du inte har kontrollerat.
+
 
 ### Kostnadsuppskattning
  
