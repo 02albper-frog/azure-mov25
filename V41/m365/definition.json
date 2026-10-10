@@ -1,0 +1,268 @@
+{
+    "name": "661a7e73-bf8a-4da7-afd8-51aee0860b8a",
+    "id": "/providers/Microsoft.Flow/flows/661a7e73-bf8a-4da7-afd8-51aee0860b8a",
+    "type": "Microsoft.Flow/flows",
+    "properties": {
+        "apiId": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+        "displayName": "Nordvik-Felanmälningar-Exam",
+        "definition": {
+            "metadata": {
+                "workflowEntityId": null,
+                "processAdvisorMetadata": null,
+                "flowChargedByPaygo": null,
+                "flowclientsuspensionreason": "None",
+                "flowclientsuspensiontime": null,
+                "flowclientsuspensionreasondetails": null,
+                "creator": {
+                    "id": "c2a82989-8af4-48f0-8912-9f527137270c",
+                    "type": "User",
+                    "tenantId": "bc1943e0-3f3d-4c79-82d4-f748276dbb02"
+                },
+                "provisioningMethod": "FromDefinition",
+                "failureAlertSubscription": true,
+                "clientLastModifiedTime": "2026-10-08T11:54:35.3775049Z",
+                "lastModifiedBy": "c2a82989-8af4-48f0-8912-9f527137270c",
+                "connectionKeySavedTimeKey": "2026-10-08T11:54:35.3775049Z",
+                "creationSource": "Portal",
+                "modifiedSources": "Portal"
+            },
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "undefined",
+            "parameters": {
+                "$authentication": {
+                    "defaultValue": {},
+                    "type": "SecureObject"
+                },
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                }
+            },
+            "triggers": {
+                "manual": {
+                    "metadata": {
+                        "operationMetadataId": "681954d6-26c5-43a9-b757-9b0095586753"
+                    },
+                    "type": "Request",
+                    "kind": "Http",
+                    "inputs": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "arendeId": {
+                                    "type": "string"
+                                },
+                                "rubrik": {
+                                    "type": "string"
+                                },
+                                "beskrivning": {
+                                    "type": "string"
+                                },
+                                "fastighet": {
+                                    "type": "string"
+                                },
+                                "lagenhet": {
+                                    "type": "string"
+                                },
+                                "kategori": {
+                                    "type": "string"
+                                },
+                                "bildFilnamn": {
+                                    "type": "string"
+                                },
+                                "bildInnehall": {
+                                    "type": "string"
+                                },
+                                "blobPath": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "triggerAuthenticationType": "All"
+                    }
+                }
+            },
+            "actions": {
+                "Skapa_objekt": {
+                    "runAfter": {
+                        "Svar": [
+                            "Succeeded"
+                        ]
+                    },
+                    "metadata": {
+                        "operationMetadataId": "22eee744-8d1f-4d2a-ad46-a2908fb59577"
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "dataset": "https://perssonalbin19gmail.sharepoint.com/sites/NordvikFastigheterAB",
+                            "table": "c07ae7df-3831-4e20-bf41-c4a888ff7f72",
+                            "item/Title": "@triggerBody()?['rubrik']",
+                            "item/Beskrivning": "@triggerBody()?['beskrivning']",
+                            "item/Fastighet": "@triggerBody()?['fastighet']",
+                            "item/Lagenhet": "@triggerBody()?['lagenhet']",
+                            "item/Kategori/Value": "@triggerBody()?['kategori']",
+                            "item/BildUrl": "@triggerBody()?['blobPath']",
+                            "item/Status/Value": "Mottagen",
+                            "item/OData__x00c4_rendeID": "@triggerBody()?['arendeId']"
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline-1",
+                            "operationId": "PostItem"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                    }
+                },
+                "Villkor": {
+                    "actions": {
+                        "Skicka_e-postmeddelande_(V2)": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "emailMessage/To": "<MOTTAGARE_EPOST>",
+                                    "emailMessage/Subject": "Akut felanmälan @{triggerBody()?['arendeId']} - @{triggerBody()?['kategori']}",
+                                    "emailMessage/Body": "<p class=\"editor-paragraph\">Rubrik: @{triggerBody()?['rubrik']}</p><p class=\"editor-paragraph\">Fastighet:@{triggerBody()?['fastighet']}</p><p class=\"editor-paragraph\">Lägenhet: @{triggerBody()?['lagenhet']}</p><p class=\"editor-paragraph\">Kategori:@{triggerBody()?['kategori']}</p><br><p class=\"editor-paragraph\">Beskrivning:</p><p class=\"editor-paragraph\">@{triggerBody()?['beskrivning']}</p>",
+                                    "emailMessage/Attachments": [
+                                        {
+                                            "Name": "@triggerBody()?['bildFilnamn']",
+                                            "ContentBytes": "@base64ToBinary(triggerBody()?['bildInnehall'])"
+                                        }
+                                    ],
+                                    "emailMessage/Importance": "High"
+                                },
+                                "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                                    "connectionName": "shared_office365",
+                                    "operationId": "SendEmailV2"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                            }
+                        }
+                    },
+                    "runAfter": {
+                        "Lägg_till_bifogad_fil": [
+                            "Succeeded"
+                        ]
+                    },
+                    "else": {
+                        "actions": {
+                            "Skicka_e-postmeddelande_(V2)_1": {
+                                "type": "OpenApiConnection",
+                                "inputs": {
+                                    "parameters": {
+                                        "emailMessage/To": "<MOTTAGARE_EPOST>",
+                                        "emailMessage/Subject": "Ny felanmälan - @{triggerBody()?['rubrik']} - @{triggerBody()?['fastighet']}",
+                                        "emailMessage/Body": "<p class=\"editor-paragraph\">Ny felanmälan inkommen till Nordvik Fastigheter AB.</p><br><p class=\"editor-paragraph\">Rubrik:@{triggerBody()?['rubrik']}</p><p class=\"editor-paragraph\">Fastighet: @{triggerBody()?['fastighet']}</p><p class=\"editor-paragraph\">Lägenhet: @{triggerBody()?['lagenhet']}</p><p class=\"editor-paragraph\">Kategori: @{triggerBody()?['kategori']}</p><br><p class=\"editor-paragraph\">Beskrivning:</p><p class=\"editor-paragraph\">@{triggerBody()?['beskrivning']}</p>",
+                                        "emailMessage/Attachments": [
+                                            {
+                                                "Name": "@triggerBody()?['bildFilnamn']",
+                                                "ContentBytes": "@base64ToBinary(triggerBody()?['bildInnehall'])"
+                                            }
+                                        ],
+                                        "emailMessage/Importance": "Normal"
+                                    },
+                                    "host": {
+                                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                                        "connectionName": "shared_office365",
+                                        "operationId": "SendEmailV2"
+                                    },
+                                    "authentication": "@parameters('$authentication')"
+                                }
+                            }
+                        }
+                    },
+                    "expression": {
+                        "or": [
+                            {
+                                "equals": [
+                                    "@triggerBody()?['kategori']",
+                                    "Värme"
+                                ]
+                            },
+                            {
+                                "equals": [
+                                    "@triggerBody()?['kategori']",
+                                    "Vatten"
+                                ]
+                            },
+                            {
+                                "equals": [
+                                    "@triggerBody()?['kategori']",
+                                    "Lås"
+                                ]
+                            }
+                        ]
+                    },
+                    "metadata": {
+                        "operationMetadataId": "e97bf74f-38ea-481f-acd4-ee7ad6114677"
+                    },
+                    "type": "If"
+                },
+                "Svar": {
+                    "runAfter": {},
+                    "type": "Response",
+                    "kind": "Http",
+                    "inputs": {
+                        "statusCode": 200,
+                        "body": {
+                            "status": "success",
+                            "message": "Felanmälan skapad och e-post skickad."
+                        }
+                    }
+                },
+                "Lägg_till_bifogad_fil": {
+                    "runAfter": {
+                        "Skapa_objekt": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "dataset": "https://perssonalbin19gmail.sharepoint.com/sites/NordvikFastigheterAB",
+                            "table": "c07ae7df-3831-4e20-bf41-c4a888ff7f72",
+                            "itemId": "@outputs('Skapa_objekt')?['body/ID']",
+                            "displayName": "@triggerBody()?['bildFilnamn']",
+                            "body": "@base64ToBinary(triggerBody()?['bildInnehall'])"
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "CreateAttachment"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                    }
+                }
+            }
+        },
+        "connectionReferences": {
+            "shared_sharepointonline-1": {
+                "connectionName": "shared-sharepointonl-8cb1b665-ad05-4059-953b-c839e4cdb9e9",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                "tier": "NotSpecified",
+                "apiName": "sharepointonline",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            },
+            "shared_office365": {
+                "connectionName": "shared-office365-55462d1e-9882-4334-aa14-3e415eaf071e",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                "tier": "NotSpecified",
+                "apiName": "office365",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            },
+            "shared_sharepointonline": {
+                "connectionName": "shared-sharepointonl-30a255c8-0a45-47ec-ba2a-cb16d5331f76",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                "tier": "NotSpecified",
+                "apiName": "sharepointonline",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            }
+        },
+        "flowFailureAlertSubscribed": false,
+        "isManaged": false
+    }
+}

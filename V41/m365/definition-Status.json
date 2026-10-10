@@ -1,0 +1,104 @@
+{
+    "name": "e29cc73b-be7e-4e9e-a44d-9f759632c130",
+    "id": "/providers/Microsoft.Flow/flows/e29cc73b-be7e-4e9e-a44d-9f759632c130",
+    "type": "Microsoft.Flow/flows",
+    "properties": {
+        "apiId": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+        "displayName": "Nordvik-Statusuppdatering",
+        "definition": {
+            "metadata": {
+                "workflowEntityId": null,
+                "processAdvisorMetadata": null,
+                "flowChargedByPaygo": null,
+                "flowclientsuspensionreason": "None",
+                "flowclientsuspensiontime": null,
+                "flowclientsuspensionreasondetails": null,
+                "creator": {
+                    "id": "<ANVANDAR_ID>",
+                    "type": "User",
+                    "tenantId": "<TENANT_ID>"
+                },
+                "provisioningMethod": "FromDefinition",
+                "failureAlertSubscription": true,
+                "clientLastModifiedTime": "2026-10-08T11:44:28.1036191Z",
+                "lastModifiedBy": "<ANVANDAR_ID>",
+                "connectionKeySavedTimeKey": "2026-10-08T11:44:28.1036191Z",
+                "creationSource": "Portal",
+                "modifiedSources": "Portal"
+            },
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$authentication": {
+                    "defaultValue": {},
+                    "type": "SecureObject"
+                },
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                }
+            },
+            "triggers": {
+                "När_ett_objekt_skapas_eller_ändras": {
+                    "recurrence": {
+                        "frequency": "Minute",
+                        "interval": 1
+                    },
+                    "evaluatedRecurrence": {
+                        "frequency": "Minute",
+                        "interval": 1
+                    },
+                    "splitOn": "@triggerOutputs()?['body/value']",
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "dataset": "https://<TENANT>.sharepoint.com/sites/<WEBBPLATS>",
+                            "table": "c07ae7df-3831-4e20-bf41-c4a888ff7f72"
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "GetOnUpdatedItems"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                    }
+                }
+            },
+            "actions": {
+                "HTTP": {
+                    "runAfter": {},
+                    "type": "Http",
+                    "inputs": {
+                        "uri": "https://func-nordvik-backend-02albper01.azurewebsites.net/api/uppdatera-status",
+                        "method": "POST",
+                        "headers": {
+                            "x-api-key": "<STATUS NYCKEL>"
+                        },
+                        "body": {
+                            "arendeId": "@{triggerBody()?['OData__x00c4_rendeID']}",
+                            "status": "@{triggerOutputs()?['body/Status/Value']}"
+                        }
+                    },
+                    "runtimeConfiguration": {
+                        "contentTransfer": {
+                            "transferMode": "Chunked"
+                        }
+                    }
+                }
+            },
+            "outputs": {}
+        },
+        "connectionReferences": {
+            "shared_sharepointonline": {
+                "connectionName": "shared-sharepointonl-30a255c8-0a45-47ec-ba2a-cb16d5331f76",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                "tier": "NotSpecified",
+                "apiName": "sharepointonline",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            }
+        },
+        "flowFailureAlertSubscribed": false,
+        "isManaged": false
+    }
+}
